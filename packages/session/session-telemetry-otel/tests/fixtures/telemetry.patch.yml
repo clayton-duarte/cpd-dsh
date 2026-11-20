@@ -1,7 +1,4 @@
-# Test-only patch over the shipped headless profile. The driver points the
-# production telemetry row at its mock collector through the public env vars.
-- id: session-telemetry-otel
-  disabled: false
+# The driver supplies a loopback collector for this explicit opt-in.
 
 - id: headless-startup
   disabled: true
@@ -23,6 +20,25 @@
     compression: none
 
 - insert:
+    - id: otel
+      name: '@deepseek-ai/dsh-otel'
+
+    - id: session-telemetry-otel
+      name: '@deepseek-ai/dsh-session-telemetry-otel'
+      config:
+        mode: !!js process.env.DSH_TELEMETRY_MODE
+        shutdownTimeoutMillis: 3000
+        maxRequestBytes: 4000000
+        exporter:
+          url: !!js process.env.DSH_TELEMETRY_E2E_URL
+          compression: gzip
+          timeoutMillis: 1000
+        processor:
+          scheduledDelayMillis: 10000
+          maxQueueSize: 2048
+          maxExportBatchSize: 2048
+          exportTimeoutMillis: 1500
+
     - id: logger-console
       name: '@deepseek-ai/cordis-plugin-logger-console'
       config:

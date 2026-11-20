@@ -1,6 +1,4 @@
 {
-  "mode": "FEEDBACK_ONLY",
-  "eventName": "session-log",
   "feedback": [
     {
       "type": "feedback/record",
@@ -26,23 +24,5 @@
       "type": "feedback/message-delete"
     }
   ],
-  "laterSubmissionSuffixes": [
-    [
-      "command/done",
-      "model/selection",
-      "model/selection",
-      "command/run",
-      "feedback/record"
-    ],
-    [
-      "command/done",
-      "feedback/message-put"
-    ],
-    [
-      "feedback/message-put"
-    ],
-    [
-      "feedback/message-delete"
-    ]
-  ]
+  "uploads": 0
 }

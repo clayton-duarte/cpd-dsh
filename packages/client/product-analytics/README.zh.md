@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-桌面端默认通过现有 OTel 产品导出器上报指定交互，不提供用户操作入口。普通 Web 客户端不会提交这些事件，缺失的登录身份字段会省略。
+部署可显式启用 OTel 产品导出器，上报指定的渲染端交互。随附的桌面和 Web profile 不挂载该采集器。缺失的登录身份字段会省略。
 
 ## 目录
 
@@ -21,9 +21,9 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-桌面端同时装配 Analytics 与必需的 Telemetry 导出器。`product-analytics` settings 命名空间持有动态 `enabled` 字段，默认 `true`，通过现有 Cordis Config / settings 机制配置，暂不提供用户操作入口。普通 Web 不装配这两个服务。关闭后不启动环境查询、不读取埋点身份、不接收新事件；导出器仍保持挂载，已入队事件可以继续导出。会话反馈遥测采用独立策略。
+显式挂载 Analytics 与必需的 Telemetry 导出器可启用渲染端采集。`product-analytics` settings 命名空间持有动态 `enabled` 字段，挂载时默认为 `true`。关闭后不启动环境查询、不读取埋点身份、不接收新事件；导出器仍保持挂载，已入队事件可以继续导出。会话反馈遥测独立运行。
 
-渲染端和 Electron 通过现有认证流订阅 Host 策略变化及重连后的值；Electron 在原生启动上报前还会读取初始策略。欢迎窗口通过 IPC 获取当前策略。Host 在接收事件及读取环境和身份后都检查当前 volatile 配置。`DSH_PRODUCT_ANALYTICS_OTLP_URL` 可覆盖导出目的地，用于隔离的接收端。[导出器](../../host/product-telemetry-otel/README.zh.md)负责批量发送、重试和退出时的交付。
+渲染端通过认证流订阅 Host 策略变化及重连后的值。Host 在接收事件及读取环境和身份后都检查当前 volatile 配置。[导出器](../../host/product-telemetry-otel/README.zh.md)负责目的地配置、批量发送、重试和退出时的交付。
 
 每条产品事件携带可用的 `device_id`、`user_id` 和 `app_version`，以及下表中的静态字段。身份复用现有登录记录，不创建设备标识；每条事件通过 `deepseekAccount.getDeviceIdentity()` 读取身份。静态环境采集独立于身份读取。不发送单独的环境事件；排除 API key、账户令牌、提示词、模型回复、主机名和机器 UUID。
 
