@@ -19,6 +19,7 @@ Build Desktop installers locally or through Windows or macOS Actions, choose dep
 - [macOS self-hosted packaging](#macos-actions)
 - [Unsigned Windows test installer](#unsigned-windows-test-installer)
 - [Local macOS DMG without release signing](#local-macos-dmg-without-release-signing)
+- [CPD macOS preview](#cpd-macos-preview)
 - [macOS release signing and diagnostics](#macos-release-signing)
 - [Directory builds and preparation](#directory-and-preparation)
 - [Local Official bundles from a loopback registry](#local-official-bundles-from-a-loopback-registry)
@@ -177,6 +178,16 @@ pnpm run package:desktop:mac:x64:unsigned
 Add `--check` to validate local configuration and tools without building, or `--dir` to stop at the unpacked application. The DMG is `apps/desktop/.desktop-build/targets/<target>/unsigned-artifacts/deepseek-harness-<version>-mac-<arch>-unsigned.dmg`. After all checks pass, the command prints `DMG:` followed by its absolute path. Open it and copy the application to a local test directory.
 
 These commands ignore `.env.macos` and inherited release settings, use `com.deepseek.harness` as the app ID, and omit automatic-update and mandatory-update configuration. Build tools, standard network proxies, and `DSH_DESKTOP_NPM_REGISTRY` remain available from the shell. They skip Developer ID signing, Apple notarization, temporary signing keychains, and notarization proxy changes. Electron receives a local ad-hoc signature without certificates so the modified executable can run; the DMG is unsigned. Both preparation and the assembled application still run runtime integrity and smoke checks. Local builds omit update feeds, ZIPs, and release completion records, and the upload commands cannot publish them. macOS may require approval in System Settings → Privacy & Security to open an unnotarized application. These builds stage no Computer Use helper, so Computer Use reports the missing helper when it prepares.
+
+<a id="cpd-macos-preview"></a>
+
+## CPD macOS preview
+
+The fork's [CPD Desktop preview workflow](../../../.github/workflows/cpd-desktop-preview.yml) is manual. It uses a GitHub-hosted Apple Silicon runner, an exact Node version, and the workspace's pinned pnpm and lockfile. From the repository root on Apple Silicon with locked dependencies installed, use `pnpm run package:desktop:mac:arm64:unsigned --cpd` for the same package, or add `--check` for preflight only.
+
+The unsigned disk image is named `cpd-<version>-mac-arm64-unsigned.dmg`. It contains an ad-hoc-signed `CPD.app` with bundle ID `com.clayton-duarte.cpd`, the upstream MIT license, and third-party notices. Packaging checks the bundled runtime without opening the GUI. Before uploading the DMG and its SHA-256 as Actions artifacts, the workflow checks the mounted bundle's identity, architecture, signature, and notices. This is not an installed-app test or a Gatekeeper qualification.
+
+The preview uses no DeepSeek account, deployment bucket, signing credentials, or update feed. In-app branding, providers, and the `dsh://` scheme are unchanged; do not use it to check side-by-side installation with the upstream app. The workflow cannot create GitHub Releases. Distribution requires a separate, explicitly approved workflow with Developer ID signing, Apple notarization and stapling, and verification before a release can be published.
 
 <a id="macos-release-signing"></a>
 

@@ -172,6 +172,29 @@ describe('desktop macOS release signature', () => {
     expect(config.artifactBuildCompleted({ file: '/tmp/local-unsigned.dmg' })).toBeUndefined()
   })
 
+  it('configures an ad-hoc CPD preview with MIT attribution and no update deployment', async () => {
+    const { createElectronBuilderConfig } = await import('../scripts/electron-builder-config.mjs')
+    const { localMacOSPackageEnvironment } = await import('../scripts/desktop-package-environment.mjs')
+    const env = localMacOSPackageEnvironment({}, true)
+    const config = createElectronBuilderConfig(env, 'darwin', 'arm64')
+    expect(config).toMatchObject({
+      appId: 'com.clayton-duarte.cpd',
+      productName: 'CPD',
+      artifactName: 'cpd-${version}-${os}-${arch}-unsigned.${ext}',
+      mac: { identity: '-', notarize: false, target: ['dmg'] },
+      dmg: { sign: false, writeUpdateInfo: false },
+      publish: null,
+    })
+    expect(config.extraMetadata).not.toHaveProperty('dshMandatoryUpdatePolicy')
+    expect(config.extraResources).toEqual(expect.arrayContaining([
+      expect.objectContaining({ to: 'LICENSE' }),
+      expect.objectContaining({ to: 'THIRD_PARTY_NOTICES.md' }),
+    ]))
+    expect(() => createElectronBuilderConfig({ ...env, DSH_DESKTOP_UNSIGNED: '0' }, 'darwin', 'arm64'))
+      .toThrow(/requires the unsigned mac-arm64 preview identity/u)
+    expect(() => createElectronBuilderConfig(env, 'darwin', 'x64')).toThrow(/requires the unsigned mac-arm64 preview identity/u)
+  })
+
   it('omits mandatory-update policy from local macOS builds even when release settings are supplied', async () => {
     const { createElectronBuilderConfig } = await import('../scripts/electron-builder-config.mjs')
     const config = createElectronBuilderConfig({ ...RELEASE_ENVIRONMENT, DSH_DESKTOP_UNSIGNED: '1' }, 'darwin', 'arm64')

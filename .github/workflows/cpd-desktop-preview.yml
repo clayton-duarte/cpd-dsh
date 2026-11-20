@@ -1,0 +1,58 @@
+name: CPD Desktop preview · macOS ARM64 (unsigned)
+
+on: workflow_dispatch
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    if: github.repository == 'clayton-duarte/cpd-dsh'
+    runs-on: macos-15
+    timeout-minutes: 90
+    env:
+      DSH_TELEMETRY_DISABLED: '1'
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: '24.22.3'
+          architecture: arm64
+          package-manager-cache: false
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0; reads packageManager
+      - name: Install locked dependencies
+        run: |
+          test "$(node -p process.arch)" = arm64
+          pnpm install --frozen-lockfile
+      - name: Package ad-hoc signed app in an unsigned DMG
+        env:
+          DSH_GATE_CONCURRENCY: '1'
+        run: |
+          # The runtime smoke prints a disposable loopback login URL. Do not publish raw package logs.
+          if ! pnpm run package:desktop:mac:arm64:unsigned --cpd > "$RUNNER_TEMP/cpd-package.log" 2>&1; then
+            echo "::error::CPD preview packaging failed. Reproduce locally using the Desktop packaging guide."
+            exit 1
+          fi
+      - name: Verify the DMG and record its SHA-256
+        id: verify
+        run: |
+          version=$(node -p "require('./apps/desktop/package.json').version")
+          directory=apps/desktop/.desktop-build/targets/mac-arm64/unsigned-artifacts
+          filename="cpd-${version}-mac-arm64-unsigned.dmg"
+          bash apps/desktop/scripts/verify-cpd-macos-preview.sh "$directory/$filename"
+          (cd "$directory" && shasum -a 256 "$filename" > "$filename.sha256")
+          echo "dmg=$directory/$filename" >> "$GITHUB_OUTPUT"
+      - name: Retain verified preview (not a GitHub Release)
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: cpd-macos-arm64-unsigned-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ steps.verify.outputs.dmg }}
+            ${{ steps.verify.outputs.dmg }}.sha256
+          if-no-files-found: error
+          retention-days: 14

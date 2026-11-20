@@ -19,6 +19,7 @@ description: "在本地或 Windows／macOS Actions 中生成 Desktop 安装包�
 - [macOS 自托管打包](#macos-actions)
 - [未签名 Windows 测试安装包](#unsigned-windows-test-installer)
 - [无发布签名的本地 macOS DMG](#local-macos-dmg-without-release-signing)
+- [CPD macOS 预览版](#cpd-macos-preview)
 - [macOS 发布签名与诊断](#macos-release-signing)
 - [目录构建与准备](#directory-and-preparation)
 - [用回环 registry 安装本地 Official 包](#local-official-bundles-from-a-loopback-registry)
@@ -177,6 +178,16 @@ pnpm run package:desktop:mac:x64:unsigned
 添加 `--check` 仅验证本地配置和工具而不构建，或添加 `--dir` 只生成解包应用。DMG 路径为 `apps/desktop/.desktop-build/targets/<target>/unsigned-artifacts/deepseek-harness-<version>-mac-<arch>-unsigned.dmg`。所有检查通过后，命令打印 `DMG:` 及其绝对路径。打开后将应用复制到本地测试目录。
 
 这些命令忽略 `.env.macos` 和继承的发布配置，使用 `com.deepseek.harness` 作为应用 ID，并省略自动更新和强制更新配置。构建工具、标准网络代理与 `DSH_DESKTOP_NPM_REGISTRY` 仍可从 shell 提供。它们跳过 Developer ID 签名、Apple 公证、临时签名钥匙串和公证代理修改。Electron 使用无需证书的本地 ad-hoc 签名，以便修改后的可执行文件能够运行；DMG 不签名。准备阶段和组装后的应用仍执行运行时完整性与冒烟检查。本地构建不生成更新源、ZIP 或发布完成记录，上传命令无法发布这些产物。macOS 可能要求在“系统设置 → 隐私与安全性”中批准打开未经公证的应用。这类构建不放入 Computer Use helper，Computer Use 准备时会报告 helper 缺失。
+
+<a id="cpd-macos-preview"></a>
+
+## CPD macOS 预览版
+
+此分支的 [CPD Desktop 预览工作流](../../../.github/workflows/cpd-desktop-preview.yml) 需手动触发。它使用 GitHub 托管的 Apple Silicon runner、固定版本的 Node，以及工作区固定的 pnpm 和锁文件。在 Apple Silicon 上安装锁定的依赖后，从仓库根目录运行 `pnpm run package:desktop:mac:arm64:unsigned --cpd` 可构建同样的安装包，添加 `--check` 则仅执行预检。
+
+未签名磁盘映像的文件名为 `cpd-<version>-mac-arm64-unsigned.dmg`。其中包含以 ad-hoc 签名的 `CPD.app`、上游 MIT 许可证和第三方声明，应用包 ID 为 `com.clayton-duarte.cpd`。打包时无需打开图形界面即可检查随附的运行时。工作流先挂载映像，校验应用包标识、架构、签名和声明，再将 DMG 和 SHA-256 校验值作为 Actions 产物上传。这不是安装后测试，也不代表通过 Gatekeeper 验收。
+
+预览版不使用 DeepSeek 账号、部署存储桶、签名凭据或更新源。应用内品牌、模型提供方和 `dsh://` 协议不变；请勿用它验证与上游应用并行安装。此工作流无法创建 GitHub Release。分发需要单独且明确获批的工作流；发布前必须完成 Developer ID 签名、Apple 公证、钉票和校验。
 
 <a id="macos-release-signing"></a>
 
