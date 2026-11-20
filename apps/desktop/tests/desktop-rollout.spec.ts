@@ -162,7 +162,7 @@ it('requires initial publication evidence and prepares approval without installe
 })
 
 it('keeps rollout approval and website recovery separate without tag creation or full package verification', async () => {
-  const text = await readFile('.github/workflows/desktop-rollout.yml', 'utf8')
+  const text = await readFile('.github/upstream-workflows/desktop-rollout.yml', 'utf8')
   const workflow = load(text) as {
     name: string
     on: { workflow_dispatch: { inputs: Record<string, { required?: boolean; default?: unknown }> } }
@@ -383,7 +383,7 @@ it.each(['missing-yaml', 'wrong-approval', 'not-uploaded', 'wrong-zone', 'not-se
   })
 
 it('executes the master guard and keeps all rollout preflights ahead of dependency installation', async () => {
-  const workflow = load(await readFile('.github/workflows/desktop-rollout.yml', 'utf8')) as {
+  const workflow = load(await readFile('.github/upstream-workflows/desktop-rollout.yml', 'utf8')) as {
     jobs: Record<string, { steps: Array<{ id?: string; run?: string; uses?: string; env?: Record<string, string> }> }>
   }
   const route = workflow.jobs.route!.steps

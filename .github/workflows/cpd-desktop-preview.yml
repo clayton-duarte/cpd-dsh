@@ -1,6 +1,12 @@
 name: CPD Desktop preview · macOS ARM64 (unsigned)
 
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+  workflow_call:
+    outputs:
+      artifact-name:
+        description: Name of the verified DMG and checksum artifact
+        value: ${{ jobs.package.outputs.artifact-name }}
 
 permissions:
   contents: read
@@ -10,6 +16,8 @@ jobs:
     if: github.repository == 'clayton-duarte/cpd-dsh'
     runs-on: macos-15
     timeout-minutes: 90
+    outputs:
+      artifact-name: ${{ steps.verify.outputs.artifact-name }}
     env:
       DSH_TELEMETRY_DISABLED: '1'
     defaults:
@@ -47,10 +55,11 @@ jobs:
           bash apps/desktop/scripts/verify-cpd-macos-preview.sh "$directory/$filename"
           (cd "$directory" && shasum -a 256 "$filename" > "$filename.sha256")
           echo "dmg=$directory/$filename" >> "$GITHUB_OUTPUT"
+          echo "artifact-name=cpd-macos-arm64-unsigned-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
       - name: Retain verified preview (not a GitHub Release)
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: cpd-macos-arm64-unsigned-${{ github.run_id }}-${{ github.run_attempt }}
+          name: ${{ steps.verify.outputs.artifact-name }}
           path: |
             ${{ steps.verify.outputs.dmg }}
             ${{ steps.verify.outputs.dmg }}.sha256
