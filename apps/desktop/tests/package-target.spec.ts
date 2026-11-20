@@ -44,6 +44,16 @@ describe('desktop package target', () => {
       .toThrow(/at most one target/u)
   })
 
+  it('only accepts the CPD preview on Apple Silicon with explicit unsigned mode', () => {
+    expect(parseDesktopPackageInvocation(['mac-arm64', '--cpd', '--unsigned'], 'darwin', 'arm64')).toMatchObject({ cpd: true, unsigned: true })
+    expect(parseDesktopPackageInvocation(['mac-arm64', '--unsigned'], 'darwin', 'arm64').cpd).toBe(false)
+    expect(() => parseDesktopPackageInvocation(['mac-arm64', '--cpd'], 'darwin', 'arm64')).toThrow(/requires mac-arm64 --unsigned/u)
+    expect(() => parseDesktopPackageInvocation(['mac-x64', '--unsigned', '--cpd'], 'darwin', 'arm64')).toThrow(/requires mac-arm64 --unsigned/u)
+    expect(() => parseDesktopPackageInvocation(['win-x64', '--unsigned', '--cpd'], 'win32', 'x64')).toThrow(/requires mac-arm64 --unsigned/u)
+    expect(() => parseDesktopPackageInvocation(['mac-arm64', '--unsigned', '--cpd', '--build-version', 'auto'], 'darwin', 'arm64'))
+      .toThrow(/uses the workspace version/u)
+  })
+
   it('parses a build version, including the separator a pnpm run script forwards', () => {
     expect(parseDesktopPackageInvocation(['mac-arm64'], 'darwin', 'arm64').requestedBuildVersion).toBeUndefined()
     expect(parseDesktopPackageInvocation(['mac-arm64', '--build-version', '0.1.6-alpha.2.20260921.1'], 'darwin', 'arm64')

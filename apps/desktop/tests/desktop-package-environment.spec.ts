@@ -106,6 +106,7 @@ describe('Desktop local packaging configuration', () => {
     const parent = {
       PATH: 'build-tools', HTTPS_PROXY: 'http://proxy.example:8080', DSH_DESKTOP_NPM_REGISTRY: 'https://registry.npmmirror.com',
       DSH_DESKTOP_APP_ID: 'com.example.release', DSH_DESKTOP_UNSIGNED: '0',
+      DSH_DESKTOP_CPD: '1',
       DSH_DESKTOP_AUTO_UPDATE_ENV: 'production', DSH_DESKTOP_MANDATORY_UPDATE_CONFIG: 'invalid-json',
       DSH_DESKTOP_MANDATORY_UPDATE_PROD_ORIGIN: 'https://policy.example.com',
       DSH_DESKTOP_MACOS_SIGNING_IDENTITY: 'Release identity', CSC_LINK: 'missing.p12',
@@ -119,6 +120,14 @@ describe('Desktop local packaging configuration', () => {
     expect(() => { validateDesktopPackageEnvironment(local, MACOS, { unsigned: true }) }).not.toThrow()
     expect(parent.DSH_DESKTOP_UNSIGNED).toBe('0')
     expect(parent.DSH_DESKTOP_APP_ID).toBe('com.example.release')
+  })
+
+  it('selects the CPD preview identity without inheriting release credentials', () => {
+    expect(localMacOSPackageEnvironment({ DSH_DESKTOP_APP_ID: 'upstream', APPLE_API_KEY: 'unused' }, true)).toEqual({
+      DSH_DESKTOP_APP_ID: 'com.clayton-duarte.cpd',
+      DSH_DESKTOP_CPD: '1',
+      DSH_DESKTOP_UNSIGNED: '1',
+    })
   })
 
   it('takes cache concurrency from the Windows file and defaults to four without ambient overrides', async () => {

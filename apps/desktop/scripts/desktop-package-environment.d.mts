@@ -3,9 +3,21 @@
 /**
  * Select local macOS test defaults without reading dotenv files or inheriting release settings.
  * @param environment Parent environment, retained for build tools and networking.
- * @returns Unsigned build environment with the standard application identifier and no update policy.
+ * @param cpd Select the CPD preview identity instead of the upstream identity.
+ * @returns Unsigned build environment with the selected application identifier and no update policy.
  */
-export function localMacOSPackageEnvironment(environment?: NodeJS.ProcessEnv): NodeJS.ProcessEnv
+export function localMacOSPackageEnvironment(environment?: NodeJS.ProcessEnv, cpd?: boolean): NodeJS.ProcessEnv
+
+/**
+ * Select installer names; refuse the CPD identity outside the unsigned Apple Silicon preview.
+ * @param environment Selected packaging settings.
+ * @param platform Target operating system.
+ * @param arch Target architecture.
+ * @returns Display and artifact names.
+ */
+export function desktopPackageBrand(environment: NodeJS.ProcessEnv, platform: string, arch: string): {
+  productName: string, artifactStem: string, cpd: boolean
+}
 
 /**
  * Read a machine preset when selected, otherwise the target's required dotenv; no ambient release fallback.
