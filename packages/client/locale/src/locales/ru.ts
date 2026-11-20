@@ -35,6 +35,7 @@ export const ru = {
   'expand': 'Развернуть',
   'back': 'Назад',
   'brand.localBuild': 'Локальная сборка DSH',
+  'brand.cpd': 'CPD',
   'workspace.defaultName': 'Рабочая область по умолчанию',
   'unknown': 'Неизвестно',
   'none': 'Нет',

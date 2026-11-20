@@ -9,6 +9,10 @@ This file lists **direct** dependencies declared by the workspace, the explicitl
 
 The complete npm transitive closure, including the Landlock launcher workspace, is recorded with exact pinned versions in [`pnpm-lock.yaml`](pnpm-lock.yaml) — inspect it with `pnpm licenses list`. The Python SDK closure is recorded separately in [`python/sdk/uv.lock`](python/sdk/uv.lock).
 
+## CPD artwork
+
+The φ mark and square tile are original CPD project artwork from [clayton-duarte/cpd](https://github.com/clayton-duarte/cpd/blob/4474e6f5a2e9895a14a9b8e517e1812f813cac69/web/build/icon/cpd-icon.svg), reused with the repository owner's direction. The outlined glyph comes from [Anonymous Pro](https://www.marksimonson.com/fonts/view/anonymous-pro/), copyright Mark Simonson, licensed under the SIL Open Font License 1.1. The icons are rendered artwork; no Anonymous Pro font software is distributed.
+
 ## Vendored source (`vendor/`)
 
 The Cordis framework and its foundation libraries are source-vendored into this repository rather than consumed from npm, and republished under the `@deepseek-ai` scope. All are MIT-licensed; each directory preserves its upstream `LICENSE` file. Exact upstream commits and local modifications are recorded in [`vendor/README.md`](vendor/README.md).

@@ -1,6 +1,6 @@
 /** Built Desktop Host acceptance; run after the repository build, without provider credentials. */
 
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { createServer } from 'node:http'
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -73,7 +73,53 @@ async function mockPlatform() {
   }
 }
 
-describe.skipIf(!existsSync(builtHost))('built Desktop welcome flow', () => {
+describe.skipIf(!existsSync(builtHost))('built Desktop provider configuration', () => {
+  it('starts with no vendor provider and retains a newly configured generic provider across Host restarts', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'cpd-desktop-provider-'))
+    let host: DesktopHostProcess | undefined
+    try {
+      const { project, paths } = await prepareDesktopHome(root)
+      const restart = async () => {
+        await host?.stop()
+        host = new DesktopHostProcess(process.execPath, project, paths.profile, undefined, process.env)
+        const { url, injections } = await host.start()
+        const cookie = await authenticateWebHost(url)
+        const rpc = async (method: string, args: object = {}): Promise<unknown> => {
+          const rpcId = randomUUID()
+          const response = await fetch(new URL(`/api/${method}`, url), {
+            method: 'POST', redirect: 'error', headers: { 'content-type': 'application/json', cookie },
+            body: JSON.stringify({ type: 'client-request', rpcId, method, payload: { args } }),
+          })
+          expect(response.ok).toBe(true)
+          const envelope = await response.json() as { rpcId: string; result: { ok: boolean; value?: unknown } }
+          expect(envelope).toMatchObject({ rpcId, result: { ok: true } })
+          return envelope.result.value
+        }
+        return { rpc, injections }
+      }
+      const fresh = await restart()
+      expect(JSON.stringify(fresh.injections)).not.toContain('ui-settings-account')
+      const directory = await fresh.rpc('llm/listConfigurableProviders') as { provider: string; declared: boolean }[]
+      expect(directory.length).toBeGreaterThan(0)
+      expect(directory.filter(row => row.declared || ['deepseek-account', 'deepseek-official'].includes(row.provider))).toEqual([])
+      expect(await fresh.rpc('session/modelCatalog')).toMatchObject({ default: { provider: '', model: '' }, groups: [] })
+      const provider = {
+        displayName: 'Synthetic gateway', api: 'openai-completions', baseURL: 'http://127.0.0.1:1/v1',
+        apiKeyEnv: 'SYNTHETIC_PROVIDER_KEY', models: [{ id: 'synthetic-model' }],
+      }
+      await fresh.rpc('settings/mutate', {
+        ns: 'llm-pi-ai', ops: [{ op: 'set', path: ['providers', 'synthetic'], value: provider }],
+      })
+      const restarted = await restart()
+      expect(await restarted.rpc('llm/listConfigurableProviders')).toEqual(expect.arrayContaining([
+        expect.objectContaining({ provider: 'synthetic', displayName: provider.displayName }),
+      ]))
+    } finally {
+      await host?.stop()
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   it('persists explicit API keys and browser account login independently across Host restarts', async () => {
     const root = mkdtempSync(join(tmpdir(), 'dsh-desktop-welcome-'))
     let host: DesktopHostProcess | undefined
@@ -83,7 +129,7 @@ describe.skipIf(!existsSync(builtHost))('built Desktop welcome flow', () => {
       const nodeBin = join(root, 'runtime/primary-runtime/dependencies/node/bin')
       mkdirSync(nodeBin, { recursive: true })
       cpSync(process.execPath, join(nodeBin, process.platform === 'win32' ? 'node.exe' : 'node'))
-      writeFileSync(join(paths.profile, 'cordis.patch.yml'), `- id: webserver\n  config:\n    host: 127.0.0.1\n    port: 0\n- id: deepseek-account\n  config:\n${process.platform === 'linux' ? '    desktopPlatform: darwin\n' : ''}    platformOrigin: ${platform.origin}\n    harnessOrigin: ${platform.origin}\n    allowLoopbackHttp: true\n    requestHeaders:\n      Cookie: test_gate=synthetic\n`)
+      writeFileSync(join(paths.profile, 'cordis.patch.yml'), `- id: webserver\n  config:\n    host: 127.0.0.1\n    port: 0\n- id: llm-deepseek\n  disabled: false\n- id: deepseek-account\n  config:\n${process.platform === 'linux' ? '    desktopPlatform: darwin\n' : ''}    platformOrigin: ${platform.origin}\n    harnessOrigin: ${platform.origin}\n    allowLoopbackHttp: true\n    requestHeaders:\n      Cookie: test_gate=synthetic\n`)
       let backend: DesktopWelcomeBackend
       let hostOrigin = ''
       const restart = async (): Promise<void> => {

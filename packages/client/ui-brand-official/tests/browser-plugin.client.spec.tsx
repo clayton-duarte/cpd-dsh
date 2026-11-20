@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { apply, inject } from '../src/client/index.ts'
-import { OfficialBrandMark, OfficialBrandName } from '../src/client/Brand.tsx'
+import { CpdBrandMark, OfficialBrandMark, OfficialBrandName } from '../src/client/Brand.tsx'
 import { apply as hostApply } from '../src/index.ts'
 
 afterEach(() => {
@@ -53,6 +53,33 @@ describe('official browser-brand plugin', () => {
     expect(subject.slots.entries('sidebar.brand.mark')).toHaveLength(0)
     expect(subject.slots.entries('sidebar.brand.name')).toHaveLength(0)
     expect(subject.slots.entries('conversation.hero.frame')).toHaveLength(1)
+  })
+
+  it('registers CPD marks for Desktop without the official wordmark or animated background', async () => {
+    vi.stubGlobal('dshDesktop', {})
+    vi.stubEnv('DSH_CLIENT_BUILD_PROFILE', 'official')
+    const subject = await bench()
+    const fiber = subject.ctx.plugin({ inject: [...inject], apply })
+    try {
+      await fiber.await()
+      for (const hole of ['sidebar.brand.mark', HERO_HOLE] as const) {
+        expect(subject.slots.entries(hole).map(entry => entry.component)).toEqual([CpdBrandMark])
+      }
+      expect(subject.slots.entries('sidebar.brand.name')).toHaveLength(0)
+      expect(subject.slots.entries('conversation.hero.frame')).toHaveLength(0)
+    } finally {
+      await fiber.dispose()
+    }
+  })
+
+  it('renders the decorative CPD outline at sidebar and hero sizes', () => {
+    const view = render(<CpdBrandMark size={24} />)
+    const mark = view.container.querySelector<HTMLElement>('[aria-hidden="true"]')!
+    expect(decodeURIComponent(mark.style.mask)).toContain('<title>cpd</title>')
+    expect(mark.style.width).toBe('24px')
+    view.rerender(<CpdBrandMark size={34} className="hero-mark" />)
+    expect(mark.style.width).toBe('34px')
+    expect(mark.className).toBe('hero-mark')
   })
 
   it('fills declarations before or after apply and removes every occupant on teardown', async () => {

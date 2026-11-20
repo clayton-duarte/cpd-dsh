@@ -190,6 +190,9 @@ describe('desktop macOS release signature', () => {
       expect.objectContaining({ to: 'LICENSE' }),
       expect.objectContaining({ to: 'THIRD_PARTY_NOTICES.md' }),
     ]))
+    expect(config.mac.icon).toMatch(/cpd-icon\.icns$/u)
+    expect(config.dmg.icon).toBe(config.mac.icon)
+    expect(config.extraResources.find(resource => resource.to === 'icon.png')?.from).toMatch(/cpd-icon\.png$/u)
     expect(() => createElectronBuilderConfig({ ...env, DSH_DESKTOP_UNSIGNED: '0' }, 'darwin', 'arm64'))
       .toThrow(/requires the unsigned mac-arm64 preview identity/u)
     expect(() => createElectronBuilderConfig(env, 'darwin', 'x64')).toThrow(/requires the unsigned mac-arm64 preview identity/u)

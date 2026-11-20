@@ -161,7 +161,7 @@ export function createElectronBuilderConfig(
     asarUnpack: unpack,
     extraResources: [
       { from: buildPaths.runtime, to: 'runtime' },
-      { from: fileURLToPath(new URL('../resources/icon-windows.png', import.meta.url)), to: 'icon.png' },
+      { from: fileURLToPath(new URL(cpd ? '../resources/cpd-icon.png' : '../resources/icon-windows.png', import.meta.url)), to: 'icon.png' },
       ...(cpd ? ['LICENSE', 'THIRD_PARTY_NOTICES.md'].map(to => ({
         from: fileURLToPath(new URL(`../../../${to}`, import.meta.url)), to,
       })) : []),
@@ -169,7 +169,7 @@ export function createElectronBuilderConfig(
       ...(packagesWindows ? [{ from: fileURLToPath(new URL('../resources/tray-windows.ico', import.meta.url)), to: 'tray.ico' }] : []),
     ],
     mac: {
-      ...(cpd ? {} : { icon: fileURLToPath(new URL('../resources/icon-macos.png', import.meta.url)) }),
+      icon: fileURLToPath(new URL(cpd ? '../resources/cpd-icon.icns' : '../resources/icon-macos.png', import.meta.url)),
       category: 'public.app-category.developer-tools',
       // macOS matches the application locale against this bundle, not Electron Framework resources.
       extendInfo: {
@@ -188,6 +188,7 @@ export function createElectronBuilderConfig(
       target: unsigned ? ['dmg'] : ['dmg', 'zip'],
     },
     dmg: {
+      ...(cpd ? { icon: fileURLToPath(new URL('../resources/cpd-icon.icns', import.meta.url)) } : {}),
       format: 'ULMO',
       sign: !unsigned,
       writeUpdateInfo: false,

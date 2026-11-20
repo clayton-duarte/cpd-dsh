@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-This package supplies a click-triggered pixel whale on the blank home and gives an `official` client build the DeepSeek Harness sidebar artwork. The shipped Web and Desktop compositions load it by default. Other build profiles retain their existing branding. The hero mark stays on its animated fish fallback. The background owns only temporary canvas resources and adds no model requests.
+The shipped Web and Desktop compositions load this branding plugin. In Desktop, it contributes the original CPD φ to the sidebar and blank session and leaves the background undecorated. In Web, it supplies the click-triggered pixel whale and gives `official` builds the DeepSeek Harness sidebar artwork. These decorations add no model requests.
 
 ## Table of Contents
 
@@ -29,7 +29,7 @@ The shipped Web and Desktop compositions already mount this plugin. Home feedbac
 
 ### Choosing the profile
 
-`DSH_CLIENT_BUILD_PROFILE` selects which brand renders. An `official` build shows the official sidebar mark and name; any other value leaves the shell fallbacks — the fish mark and the local-build label — in place. The conversation hero shows the animated hero fish from `dsh-client-ui-conversation` regardless of profile, because that fallback is already the official mark. The plugin still loads and validates in both cases; only the sidebar artwork registration is profile-gated; the home background is shared across build profiles.
+For Web, `DSH_CLIENT_BUILD_PROFILE=official` supplies the official sidebar mark and name. Other values use the sidebar fallbacks. All Web build profiles retain the animated hero fish and the home background. Desktop uses the CPD slots regardless of build profile; the sidebar owns its CPD text and build badge.
 
 ### Home feedback
 
@@ -41,7 +41,7 @@ The artwork values are fixed and the row takes no configuration. This is built-i
 
 ### Replacing the brand
 
-A deployment with its own identity leaves this package out and composes another package that occupies the sidebar slots and the `conversation.hero.frame` layer — and the hero-mark slot, which this package leaves on its fallback. Occupying a slot is the only composition route; the artwork identity is not configurable.
+A deployment with its own identity leaves this package out and composes another package that occupies the sidebar branding slots and, as needed, `conversation.hero.brand.mark` or `conversation.hero.frame`. The artwork identity is not configurable.
 
 -----
 

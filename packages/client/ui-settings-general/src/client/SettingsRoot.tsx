@@ -17,7 +17,7 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
 import {
-  ConnectionIndicator, Tooltip, useModalLayer,
+  ConnectionIndicator, Menu, Tooltip, useModalLayer, IconEllipsisOutlineMedium,
   IconAgentPresetOutlineMedium, IconArchiveOutlineMedium, IconCloseOutlineRegular, IconDataOutlineMedium,
   IconPersonalizationOutlineMedium, IconSettingsOutlineMedium, IconUserOutlineMedium,
 } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -211,6 +211,7 @@ export function SettingsRoot(props: SettingsRootComponentProps) {
     })
   }, [])
 
+  const [moreOpen, setMoreOpen] = useState(false)
   let connectionIndicator: ConnectionIndicatorState | undefined
   if (connectionState === 'connecting' || holdConnecting) {
     connectionIndicator = 'connecting'
@@ -230,7 +231,19 @@ export function SettingsRoot(props: SettingsRootComponentProps) {
           },
           ...(shortcut?.keys.length ? { settingsShortcut: { keys: shortcut.keys, aria: shortcut.aria } } : {}),
           openOnboarding: (id) => { close(); setRequestedOnboarding(id) },
-        }, { fallback: <Tooltip disabled={open} label={t('trigger')} shortcutKeys={shortcut?.keys}>
+        }, { fallback: 'dshDesktop' in globalThis ? (
+          <Menu open={moreOpen} side="top" portal autoFocus className={css.moreAnchor}
+            anchor={<button type="button" className={clsx(css.trigger, !wide && css.rail)}
+              aria-label={t('more')} aria-haspopup="menu" aria-expanded={moreOpen}
+              onClick={() => { setMoreOpen(value => !value) }}>
+              <IconEllipsisOutlineMedium size={14} />
+              {wide && <span>{t('more')}</span>}
+            </button>}
+            items={[{ id: 'settings', label: t('trigger'), icon: <IconSettingsOutlineMedium size={16} />,
+              ...(shortcut?.keys.length ? { shortcut: { keys: shortcut.keys, aria: shortcut.aria } } : {}) }]}
+            onClose={() => { setMoreOpen(false) }}
+            onSelect={() => { setMoreOpen(false); actions.open() }} />
+        ) : <Tooltip disabled={open} label={t('trigger')} shortcutKeys={shortcut?.keys}>
           <button
             type="button"
             className={clsx(css.trigger, !wide && css.rail)}
