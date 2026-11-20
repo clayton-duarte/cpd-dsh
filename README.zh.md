@@ -1,8 +1,8 @@
-# DeepSeek Harness
+# CPD Desktop
 
 [English](README.md) | 中文
 
-DeepSeek Harness（`dsh`）是由 [DeepSeek AI](https://deepseek.com) 开发的开源 agent harness（智能体框架）。
+CPD Desktop is a fork of [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), the open-source agent harness (`dsh`) developed by [DeepSeek AI](https://deepseek.com). Download the unsigned Apple Silicon preview from [CPD releases](https://github.com/clayton-duarte/cpd-dsh/releases). It opens directly to the workspace; add a provider under **More → Settings → Models**. The [fork policy](FORK_POLICY.md) lists the intentional differences and how to check them after an upstream update.
 
 它构建于**一切皆插件**的架构之上，由 [Cordis](https://github.com/cordiverse/cordis) 驱动，其设计参见论文 [_A Programming Paradigm for Spatiotemporal Composability_](https://arxiv.org/abs/2608.25512)。
 
@@ -35,8 +35,8 @@ npx @deepseek-ai/dsh web
 如需从仓库源码运行：
 
 ```sh
-git clone https://github.com/deepseek-ai/deepseek-harness.git
-cd deepseek-harness
+git clone https://github.com/clayton-duarte/cpd-dsh.git
+cd cpd-dsh
 pnpm install
 pnpm run build
 pnpm dsh web
