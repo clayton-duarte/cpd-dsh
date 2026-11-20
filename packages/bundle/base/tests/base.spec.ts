@@ -27,15 +27,15 @@ describe('dsh-base bundle', () => {
     )
     expect(Array.isArray(parsed)).toBe(true)
     // The base layer is one insert list over the empty profile root.
-    const rows = (parsed as { insert?: { id?: string; config?: Record<string, unknown>; disabled?: boolean }[] }[]).flatMap(
+    const rows = (parsed as { insert?: { id?: string; name?: string; config?: Record<string, unknown> }[] }[]).flatMap(
       patch => patch.insert ?? [],
     )
     expect(rows.length).toBeGreaterThan(50)
     expect(rows.some(row => row.id === 'agent-loop')).toBe(true)
-    expect(rows.find(row => row.id === 'session-telemetry-otel')?.disabled).toBeUndefined()
-    expect(rows.find(row => row.id === 'session-telemetry-otel')?.config?.['mode']).toEqual({
-      __jsExpr: "process.env.DSH_TELEMETRY_MODE || 'FEEDBACK_ONLY'",
-    })
+    expect(rows.some(row => row.name === '@deepseek-ai/dsh-session-telemetry-otel')).toBe(false)
+    expect(rows.some(row => row.name === '@deepseek-ai/dsh-session-log-deepseek')).toBe(false)
+    expect(rows.some(row => row.name === '@deepseek-ai/dsh-plugin-package-inventory-deepseek')).toBe(false)
+    expect(rows.find(row => row.id === 'command-feedback')?.name).toBe('@deepseek-ai/dsh-command-feedback')
     expect(rows.find(row => row.id === 'hmr')).toMatchObject({
       config: { root: [] },
     })
