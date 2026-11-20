@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import type { Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
+import sharp from 'sharp'
 import { clientBuildEnvironmentDefines } from '../../scripts/client-build-environment.ts'
 import { productWebBundleIsolation } from './product-isolation.ts'
 import { katexWoff2Fonts } from './katex-fonts.ts'
@@ -40,6 +41,32 @@ function brandFontLicense(): Plugin {
         fileName: 'assets/fonts/Montserrat-OFL.txt',
         source: await readFile(src('../../packages/client/ui-theme/src/styles/Montserrat-OFL.txt')),
       })
+    },
+  }
+}
+
+/** Emit a multi-size ICO from the same CPD tile as the public SVG favicon. */
+function cpdFavicon(): Plugin {
+  return {
+    name: 'cpd-favicon',
+    async generateBundle() {
+      const svg = await readFile(src('./public/favicon.svg'))
+      const sizes = [16, 32, 48]
+      const images = await Promise.all(sizes.map(size => sharp(svg).resize(size, size).png().toBuffer()))
+      const table = Buffer.alloc(6 + 16 * sizes.length)
+      table.writeUInt16LE(1, 2)
+      table.writeUInt16LE(sizes.length, 4)
+      let offset = table.length
+      for (const [index, size] of sizes.entries()) {
+        const entry = 6 + 16 * index
+        table[entry] = table[entry + 1] = size
+        table.writeUInt16LE(1, entry + 4)
+        table.writeUInt16LE(32, entry + 6)
+        table.writeUInt32LE(images[index].length, entry + 8)
+        table.writeUInt32LE(offset, entry + 12)
+        offset += images[index].length
+      }
+      this.emitFile({ type: 'asset', fileName: 'favicon.ico', source: Buffer.concat([table, ...images]) })
     },
   }
 }
@@ -171,7 +198,7 @@ export default defineConfig({
   // directory, and the served index resolves identically from the site root.
   base: './',
   plugins: [
-    rejectStandaloneServe(), clientDocumentTitle(), brandFontLicense(), katexWoff2Fonts(), react(), emitPreviewPage(),
+    rejectStandaloneServe(), clientDocumentTitle(), brandFontLicense(), cpdFavicon(), katexWoff2Fonts(), react(), emitPreviewPage(),
     productWebBundleIsolation(src('../..'), src('.')),
   ],
   build: {

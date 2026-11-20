@@ -35,6 +35,7 @@ export const de = {
   'expand': 'Ausklappen',
   'back': 'Zurück',
   'brand.localBuild': 'Lokaler DSH-Build',
+  'brand.cpd': 'CPD',
   'workspace.defaultName': 'Standardarbeitsbereich',
   'unknown': 'Unbekannt',
   'none': 'Keine',

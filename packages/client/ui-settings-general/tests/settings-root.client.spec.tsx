@@ -33,6 +33,7 @@ afterEach(() => {
   if (scrollIntoViewDescriptor === undefined) Reflect.deleteProperty(Element.prototype, 'scrollIntoView')
   else Object.defineProperty(Element.prototype, 'scrollIntoView', scrollIntoViewDescriptor)
   vi.useRealTimers()
+  vi.unstubAllGlobals()
 })
 
 type Row = { id: string; order: number; label: string }
@@ -510,6 +511,18 @@ it('explicitly reopens one onboarding editor during an existing session', () => 
   act(() => { (call?.[1] as { complete: () => void }).complete() })
   renderSlot.mockClear()
   expect(screen.queryByTestId('onboarding')).toBeNull()
+})
+
+it('opens desktop settings from a More menu without account actions', () => {
+  vi.stubGlobal('dshDesktop', {})
+  const dictionary = { ...en, more: 'More' }
+  mount({ steps: [], dictionary })
+  fireEvent.click(screen.getByRole('button', { name: 'More' }))
+  const choices = screen.getAllByRole('menuitem')
+  expect(choices.map(choice => choice.textContent)).toEqual(['Settings'])
+  fireEvent.click(choices[0]!)
+  expect(screen.getByRole('dialog')).toBeTruthy()
+  expect(screen.queryByRole('menu')).toBeNull()
 })
 
 it('opens Account from the contributed sidebar launcher', () => {

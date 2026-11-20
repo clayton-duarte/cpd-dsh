@@ -30,6 +30,12 @@ const url = 'http://127.0.0.1:19387/'
 const cookie = 'dsh-auth-fixture=signed'
 
 describe('desktop welcome Web operations', () => {
+  it('reads startup preferences without calling account, provider, or credential methods', async () => {
+    const host = transport('zh')
+    const backend = connectDesktopWelcome(url, cookie, host.send)
+    expect(await backend.readAppearance()).toEqual({ localePreference: 'zh', themePreference: 'system' })
+    expect(host.send.mock.calls.map(([input]) => new URL(input).pathname)).toEqual(['/api/settings/describe'])
+  })
   it.each(['light', 'dark', 'system'] as const)('reads the live %s theme in the existing settings request', async (preference) => {
     const host = transport()
     host.namespaces.push({ ns: 'ui-theme', value: { preference } })

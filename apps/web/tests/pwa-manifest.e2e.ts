@@ -108,16 +108,15 @@ it('decodes every generated and shipped icon with its full artwork and opaque co
   } finally { await browser.close() }
 })
 
-it('ships fixed-color favicons selected by document media queries', async () => {
+it('ships the CPD tile as SVG and a multi-size ICO fallback', async () => {
   const index = await readFile(join(DIST_ROOT, 'index.html'), 'utf8')
-  expect(index).toContain('<link rel="icon" type="image/svg+xml" href="./favicon-dark.svg" media="(prefers-color-scheme: dark)" />')
-  expect(index).toContain('<link rel="icon" type="image/svg+xml" href="./favicon.svg" media="(prefers-color-scheme: light)" />')
-  const light = await readFile(join(DIST_ROOT, 'favicon.svg'), 'utf8')
-  const dark = await readFile(join(DIST_ROOT, 'favicon-dark.svg'), 'utf8')
-  expect(light).not.toContain('<style>')
-  expect(light).toContain('fill="#000"')
-  expect(dark).toContain('fill="#fff"')
-  expect(dark.replace('fill="#fff"', 'fill="#000"')).toBe(light)
+  expect(index).toContain('<link rel="icon" type="image/x-icon" href="./favicon.ico" />')
+  expect(index).toContain('<link rel="icon" type="image/svg+xml" href="./favicon.svg" />')
+  expect(await readFile(join(DIST_ROOT, 'favicon.svg'), 'utf8')).toContain('<title>cpd</title>')
+  const ico = await readFile(join(DIST_ROOT, 'favicon.ico'))
+  expect(ico.readUInt16LE(2)).toBe(1)
+  expect(ico.readUInt16LE(4)).toBe(3)
+  expect([ico[6], ico[22], ico[38]]).toEqual([16, 32, 48])
 })
 
 it('preserves fractional coverage along the Apple icon curves', async () => {

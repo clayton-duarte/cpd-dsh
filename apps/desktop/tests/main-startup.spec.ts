@@ -419,6 +419,7 @@ vi.mock('../src/welcome-backend.ts', () => ({
       analyticsEnabled: harness.readAnalyticsPolicy,
       report: harness.analytics,
       readLocalePreference: async () => null,
+      readAppearance: async (): Promise<unknown> => (await harness.hosts.at(-1)!.fetch()).json() as Promise<unknown>,
       read: async (): Promise<unknown> => (await harness.hosts.at(-1)!.fetch()).json() as Promise<unknown>,
       save: async () => ({ ok: true }),
       account: { watch: harness.watchAccount, state: async () => ({ status: 'signed-out', attempt: null }) },
@@ -868,7 +869,7 @@ describe('desktop main startup', () => {
     expect({ menu: [{ label: about!.label, role: about!.role }, separator], options: { ...options, iconPath: '<app icon>' } })
       .toEqual(expected[`${platform}:${locale}`])
     expect(options.iconPath).toBe(packaged ? join('desktop-test-resources', 'icon.png')
-      : join('desktop-test-app', 'resources', 'icon-windows.png'))
+      : join('desktop-test-app', 'resources', platform === 'darwin' ? 'cpd-icon.png' : 'icon-windows.png'))
     if (platform !== 'win32') { expect(about!.click).toBeUndefined(); return }
     // Windows reuses the dimmed update dialog because Electron's fallback is a bare message box.
     harness.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 })
@@ -876,7 +877,7 @@ describe('desktop main startup', () => {
     await vi.advanceTimersByTimeAsync(0)
     const zh = locale === 'zh-CN'
     expect(harness.dialog.showMessageBox).toHaveBeenLastCalledWith(expect.objectContaining({
-      type: 'info', title: zh ? '关于 DeepSeek Harness' : 'About DeepSeek Harness', message: 'DeepSeek Harness',
+      type: 'info', title: zh ? '关于 CPD' : 'About CPD', message: 'CPD',
       detail: zh ? '版本 V1.0.0' : 'Version V1.0.0', buttons: [zh ? '确定' : 'OK'], cancelId: 0,
     }))
     // A dialog that cannot open is logged, not surfaced as an unhandled rejection.
@@ -1385,7 +1386,7 @@ describe('desktop main startup', () => {
     expect(() => handler(event, 'application', NaN, 34)).toThrow('invalid popup request')
     const application = handler(event, 'application', 48, 34)
     expect(harness.menu.buildFromTemplate.mock.lastCall![0].map(item => item.label ?? item.type)).toEqual([
-      '关于 DeepSeek Harness', 'separator', '检查更新…', '管理 dsh 命令…', 'separator', zh.toggleDevToolsMenu, 'separator', '退出',
+      '关于 CPD', 'separator', '检查更新…', '管理 dsh 命令…', 'separator', zh.toggleDevToolsMenu, 'separator', '退出',
     ])
     expect(harness.popup.mock.lastCall![0]).toMatchObject({ window, x: 48, y: 34 })
     expect(harness.popup.mock.lastCall![0].callback).toBeTypeOf('function')
@@ -1418,7 +1419,7 @@ describe('desktop main startup', () => {
       .find(items => items.some(item => item.role === 'editMenu'))
     if (template === undefined) throw new Error('application menu missing')
     expect(template.map(describeItem)).toEqual(platform === 'darwin'
-      ? ['Desktop test', en.fileMenu, 'editMenu', 'windowMenu']
+      ? ['CPD', en.fileMenu, 'editMenu', 'windowMenu']
       : ['Application', 'editMenu'])
     const describeEdit = (items: MenuItemConstructorOptions[]): unknown[] => items.map(item => Array.isArray(item.submenu)
       ? [describeItem(item), describeEdit(item.submenu)]
@@ -3084,52 +3085,20 @@ describe('desktop main startup', () => {
   })
 })
 
-it.each(['failed', 'expired'] as const)('focuses DSH once when browser authorization becomes %s', async (phase) => {
+it('opens a keyless Desktop workspace without watching the vendor account or requesting analytics policy', async () => {
   await import('../src/main.ts')
   await harness.preparing.promise
   harness.prepared.resolve()
   await harness.hostStarted.promise
-  harness.hosts[0]!.ready.resolve()
+  const host = harness.hosts[0]!
+  host.fetch.mockResolvedValue(Response.json({ localePreference: 'zh-CN', themePreference: 'dark' }))
+  host.ready.resolve()
   await Promise.resolve(invoke(DESKTOP_IPC.boot))
-  const window = harness.windows[0]!
-  window.focus.mockClear()
-  const state: AccountView = {
-    status: 'signed-out', links: { usageUrl: 'https://platform.deepseek.com/usage', topUpUrl: 'https://platform.deepseek.com/top_up' },
-    attempt: { id: 'test-failed-attempt' as NonNullable<AccountView['attempt']>['id'], phase },
-  }
-  harness.publishAccount(state)
-  harness.publishAccount(state)
-  expect(window.focus).toHaveBeenCalledTimes(1)
-})
-
-it.each([['light', false], ['dark', true]] as const)('opens Platform authorization in the effective %s palette', async (theme, shouldUseDarkColors) => {
-  await import('../src/main.ts')
-  await harness.preparing.promise
-  harness.prepared.resolve()
-  await harness.hostStarted.promise
-  harness.hosts[0]!.ready.resolve()
-  await Promise.resolve(invoke(DESKTOP_IPC.boot))
-  harness.nativeTheme.shouldUseDarkColors = shouldUseDarkColors
-  const state: AccountView = {
-    status: 'signed-out', links: { usageUrl: 'https://platform.deepseek.com/usage', topUpUrl: 'https://platform.deepseek.com/top_up' },
-    attempt: { id: 'test-theme-attempt' as NonNullable<AccountView['attempt']>['id'], phase: 'waiting-browser',
-      authorizeUrl: 'https://platform.deepseek.com/dsh/authorize?state=state-1' },
-  }
-  harness.publishAccount(state)
-  harness.publishAccount(state)
-  expect(harness.openExternal).toHaveBeenCalledExactlyOnceWith(`https://platform.deepseek.com/dsh/authorize?state=state-1&theme=${theme}`)
-})
-
-it('starts Desktop without requesting product analytics policy or reporting launch', async () => {
-  await import('../src/main.ts')
-  await harness.preparing.promise
-  harness.prepared.resolve()
-  await harness.hostStarted.promise
-  harness.hosts[0]!.ready.resolve()
-  await harness.navigated.promise
-  await vi.waitFor(() => {
-    expect(harness.watchAccount).toHaveBeenCalledExactlyOnceWith(expect.any(Function), expect.any(Function), expect.any(Function))
-  })
+  expect(harness.windows).toHaveLength(1)
+  expect(harness.windows[0]!.urls).toEqual(['dsh-app://app/'])
+  expect(harness.windows[0]!.show).toHaveBeenCalledOnce()
+  expect(harness.nativeTheme.themeSource).toBe('dark')
+  expect(harness.watchAccount).not.toHaveBeenCalled()
   expect(harness.readAnalyticsPolicy).not.toHaveBeenCalled()
   expect(harness.analytics).not.toHaveBeenCalled()
 })

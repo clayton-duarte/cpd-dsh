@@ -35,6 +35,9 @@ assert_equal "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$plist")
 assert_equal "$(lipo -archs "$contents/MacOS/CPD")" arm64 "executable architecture"
 test -r "$contents/Resources/app.asar"
 test ! -e "$contents/Resources/app-update.yml"
+bundle_icon=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$plist")
+cmp "$root/apps/desktop/resources/cpd-icon.icns" "$contents/Resources/${bundle_icon%.icns}.icns"
+cmp "$root/apps/desktop/resources/cpd-icon.png" "$contents/Resources/icon.png"
 cmp "$root/LICENSE" "$contents/Resources/LICENSE"
 cmp "$root/THIRD_PARTY_NOTICES.md" "$contents/Resources/THIRD_PARTY_NOTICES.md"
 signature=$(codesign -d --verbose=4 "$mount/CPD.app" 2>&1)

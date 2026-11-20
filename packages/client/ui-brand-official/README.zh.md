@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-本包在空白首页提供点击浮出的像素鲸鱼，并让以 `official` profile 构建的客户端显示 DeepSeek Harness 侧栏品牌图形。随产品提供的 Web 与 Desktop 组合默认加载本包。其他构建 profile 保留原有品牌。首屏标志仍使用动画鱼回退。背景只持有临时 Canvas 资源，不增加模型请求。
+随产品提供的 Web 和 Desktop 组合加载本品牌插件。在 Desktop 中，插件为侧栏和空白会话提供原版 CPD φ 标志，不添加背景装饰。在 Web 中，插件提供点击浮出的像素鲸鱼，并为 `official` 构建提供 DeepSeek Harness 侧栏图案。这些装饰不会增加模型请求。
 
 ## 目录
 
@@ -29,7 +29,7 @@ kind: "package-reference"
 
 ### 选择 profile
 
-`DSH_CLIENT_BUILD_PROFILE` 决定渲染哪个品牌。`official` 构建显示官方侧栏标志和名称；任何其他取值都让外壳回退——鱼形标志与本地构建标签——保持原样。会话首屏无论 profile 如何都显示来自 `dsh-client-ui-conversation` 的动画首屏鱼，因为这个回退本身就是官方标志。两种情况下插件都会照常加载并通过校验；只有侧栏图形注册受 profile 门控；各构建 profile 共用首页背景。
+在 Web 中，`DSH_CLIENT_BUILD_PROFILE=official` 提供官方侧栏标志和名称，其他取值使用侧栏的默认内容。所有 Web 构建 profile 都保留会话首屏的动画鱼和首页背景。Desktop 不受构建 profile 影响，始终使用 CPD 标志，侧栏负责显示 CPD 名称和构建徽标。
 
 ### 首页反馈
 

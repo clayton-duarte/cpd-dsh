@@ -422,6 +422,15 @@ function mount(
 }
 
 describe('Hero chrome', () => {
+  it('uses the CPD name and drops the Preview badge on a blank Desktop session', () => {
+    vi.stubGlobal('dshDesktop', {})
+    const renderSlot = vi.fn(() => null)
+    const view = render(<HeroShell t={makeTranslate(en, commonEn)} renderSlot={renderSlot} />)
+    expect(view.getByText('CPD')).toBeTruthy()
+    expect(view.queryByText('Into the Unknown')).toBeNull()
+    expect(view.queryByText('Preview')).toBeNull()
+  })
+
   it('renders the English preview badge through the hero locale seat', () => {
     const renderSlot = vi.fn<(key: string, owner: object, opts?: { fallback?: ReactNode }) => ReactNode>(() => null)
     const view = render(<HeroShell t={makeTranslate(en, commonEn)} renderSlot={renderSlot as never} />)

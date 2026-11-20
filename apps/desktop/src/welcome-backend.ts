@@ -18,6 +18,8 @@ export interface DesktopWelcomeBackend {
   readonly account: DesktopAccountBackend
   /** @returns Configured-key presence and the shared language and theme preferences, without credential values. */
   read(): Promise<WelcomeState>
+  /** @returns Saved appearance preferences without consulting providers, credentials, or accounts. */
+  readAppearance(): Promise<Pick<WelcomeState, 'localePreference' | 'themePreference'>>
   /** @returns The saved UI language without account or provider requests. */
   readLocalePreference(): Promise<string | null>
   /**
@@ -64,15 +66,20 @@ export function connectDesktopWelcome(
     return envelope.result.value
   }
   const account = desktopAccountBackend(origin, invoke, cookie)
-  const settingsAndReference = async () => {
+  const readNamespaces = async (): Promise<unknown[]> => {
     const settings = await invoke({ namespace: 'settings', method: 'describe', args: {} })
     if (!record(settings) || !Array.isArray(settings.namespaces)) throw new Error('desktop welcome: missing settings namespaces')
-    const official: unknown = settings.namespaces.find((item: unknown) => record(item) && item.ns === 'llm-deepseek')
-    if (official === undefined) return { settings: { namespaces: settings.namespaces }, ref: undefined }
+    const namespaces: unknown[] = settings.namespaces
+    return namespaces
+  }
+  const settingsAndReference = async () => {
+    const namespaces = await readNamespaces()
+    const official = namespaces.find(item => record(item) && item.ns === 'llm-deepseek')
+    if (official === undefined) return { namespaces, ref: undefined }
     if (!record(official) || !record(official.value) || typeof official.value.apiKeyEnv !== 'string') {
       throw new Error('desktop welcome: missing official DeepSeek credential reference')
     }
-    return { settings: { namespaces: settings.namespaces }, ref: official.value.apiKeyEnv }
+    return { namespaces, ref: official.value.apiKeyEnv }
   }
   const localePreference = (namespaces: unknown[]): string | null => {
     const locale: unknown = namespaces.find((item: unknown) => record(item) && item.ns === 'locale')
@@ -91,10 +98,9 @@ export function connectDesktopWelcome(
     return 'system'
   }
   const read = async (): Promise<WelcomeState> => {
-    const { settings, ref } = await settingsAndReference()
+    const { namespaces, ref } = await settingsAndReference()
     const providers = await invoke({ namespace: 'llm', method: 'listConfigurableProviders', args: {} })
     if (!Array.isArray(providers)) throw new Error('desktop welcome: invalid provider directory')
-    const namespaces = settings.namespaces
     const refs = providers.flatMap((provider: unknown) => {
       if (!record(provider) || typeof provider.settingsNs !== 'string' || !Array.isArray(provider.settingsPath)) {
         throw new Error('desktop welcome: invalid provider settings address')
@@ -127,10 +133,12 @@ export function connectDesktopWelcome(
   return {
     account,
     read,
+    async readAppearance() {
+      const namespaces = await readNamespaces()
+      return { localePreference: localePreference(namespaces), themePreference: themePreference(namespaces) }
+    },
     async readLocalePreference() {
-      const settings = await invoke({ namespace: 'settings', method: 'describe', args: {} })
-      if (!record(settings) || !Array.isArray(settings.namespaces)) throw new Error('desktop welcome: missing settings namespaces')
-      return localePreference(settings.namespaces)
+      return localePreference(await readNamespaces())
     },
     async save(apiKey) {
       if (!/^[\x21-\x7e]+$/.test(apiKey)) return { ok: false }
