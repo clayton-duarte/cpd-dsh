@@ -1,8 +1,8 @@
-# DeepSeek Harness
+# CPD Desktop
 
 English | [中文](README.zh.md)
 
-DeepSeek Harness (`dsh`) is an open-source agent harness developed by [DeepSeek AI](https://deepseek.com).
+CPD Desktop is a fork of [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), the open-source agent harness (`dsh`) developed by [DeepSeek AI](https://deepseek.com). Download the unsigned Apple Silicon preview from [CPD releases](https://github.com/clayton-duarte/cpd-dsh/releases). It opens directly to the workspace; add a provider under **More → Settings → Models**. The [fork policy](FORK_POLICY.md) lists the intentional differences and how to check them after an upstream update.
 
 It is built on an **everything-is-a-plugin** architecture and powered by [Cordis](https://github.com/cordiverse/cordis), whose design is described in [_A Programming Paradigm for Spatiotemporal Composability_](https://arxiv.org/abs/2608.25512).
 
@@ -18,7 +18,7 @@ Review the [safety notice](SAFETY.md) before running the project.
 
 ### Run from `npm`
 
-Install `Node.js`, then run:
+This runs the upstream Web package, not the CPD Desktop preview. Install `Node.js`, then run:
 
 ```sh
 npx @deepseek-ai/dsh web
@@ -31,8 +31,8 @@ The command starts the Web UI at `http://127.0.0.1:3080` by default and opens it
 To run from a repository checkout:
 
 ```sh
-git clone https://github.com/deepseek-ai/deepseek-harness.git
-cd deepseek-harness
+git clone https://github.com/clayton-duarte/cpd-dsh.git
+cd cpd-dsh
 pnpm install
 pnpm run build
 pnpm dsh web
