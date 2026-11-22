@@ -82,14 +82,27 @@ it('limits product documents to update status and a native confirmation action',
   expect(electron.ipcRenderer.off).toHaveBeenCalledWith(DESKTOP_IPC.updatesPresentation, handler)
 })
 
-it('does not expose the CPD updater bridge', async () => {
+it('exposes only local status and quit controls for CPD managed updates', async () => {
   electron.enforceCpdPolicy = true
   vi.stubGlobal('location', new URL('dsh-app://app/'))
   await import('../src/preload-app.ts')
   const api = electron.contextBridge.exposeInMainWorld.mock.calls.find(([name]) => name === 'dshDesktop')?.[1] as DshDesktopProductApi
   expect(api).not.toHaveProperty('updates')
   expect(installMandatoryUpdateOverlay).not.toHaveBeenCalled()
-  expect(electron.ipcRenderer.invoke).not.toHaveBeenCalled()
+  const managed = api.managedUpdates!
+  expect(Object.keys(managed).sort()).toEqual(['open', 'status', 'subscribe'])
+  await managed.status()
+  await managed.open()
+  expect(electron.ipcRenderer.invoke.mock.calls).toEqual([[DESKTOP_IPC.managedUpdateStatus], [DESKTOP_IPC.managedUpdateQuit]])
+  const listener = vi.fn()
+  const dispose = managed.subscribe(listener)
+  const handler = electron.ipcRenderer.on.mock.calls.find(([channel]) => channel === DESKTOP_IPC.managedUpdateChanged)?.[1] as
+    (event: unknown, state: unknown) => void
+  const state = { phase: 'ready', managedByDotfiles: true, version: 'bbbbbbb' }
+  handler({}, state)
+  expect(listener).toHaveBeenCalledWith(state)
+  dispose()
+  expect(electron.ipcRenderer.off).toHaveBeenCalledWith(DESKTOP_IPC.managedUpdateChanged, handler)
 })
 
 it.each(['dsh-app://shell/plugin-manager.html', 'dsh-app://other/index.html', 'https://shell/startup.html', 'http://example.com/'])('exposes only the carrier marker to %s', async (url) => {

@@ -11,8 +11,11 @@ export class DesktopUpdateSource {
   private openingOperation: symbol | undefined
   private readonly unsubscribe: (() => void) | undefined
 
-  /** @param bridge - Optional isolated Electron API, absent in ordinary browsers. */
-  constructor(private readonly bridge: DesktopUpdateBridge | undefined) {
+  /**
+   * @param bridge - Optional isolated Electron API, absent in ordinary browsers.
+   * @param managed - Whether dotfiles owns updates and there is no updater retry action.
+   */
+  constructor(private readonly bridge: DesktopUpdateBridge | undefined, private readonly managed = false) {
     this.unsubscribe = bridge?.subscribe((presentation) => {
       if (!this.live) return
       this.received = true
@@ -24,7 +27,7 @@ export class DesktopUpdateSource {
     void bridge?.status().then((presentation) => {
       if (this.live && !this.received) this.store.set({ ...this.store.getSnapshot(), presentation })
     }, () => {
-      if (this.live && !this.received) this.store.set({ ...this.store.getSnapshot(), failed: true })
+      if (this.live && !this.received && !this.managed) this.store.set({ ...this.store.getSnapshot(), failed: true })
     })
   }
 
@@ -38,7 +41,7 @@ export class DesktopUpdateSource {
     this.openingOperation = operation
     this.store.set({ ...state, opening: true })
     void this.bridge.open().catch(() => {
-      if (this.live && this.openingOperation === operation) this.store.set({ ...this.store.getSnapshot(), failed: true })
+      if (this.live && this.openingOperation === operation && !this.managed) this.store.set({ ...this.store.getSnapshot(), failed: true })
     }).finally(() => {
       if (this.live && this.openingOperation === operation) {
         this.openingOperation = undefined
