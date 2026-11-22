@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.2-rc.5/cpd-desktop-updates/guide.md
+/:
+  en: ceae10674e309aee
+  zh: a6fa6ed724c46042
+/update-cpd-desktop-outside-the-app:
+  en: 846023ff487b1f09
+  zh: a4ad8a92eafd8962
+/update-cpd-desktop-outside-the-app/change:
+  en: 3318acb470be316c
+  zh: b3d0257189956815
+/update-cpd-desktop-outside-the-app/migration:
+  en: 46e9cb33970c9251
+  zh: 458b30b409e82fbe

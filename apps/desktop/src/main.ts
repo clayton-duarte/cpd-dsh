@@ -38,7 +38,7 @@ import { desktopUpdateReadyConfirmation, formatDesktopMessage, resolveDesktopLoc
 import type { DesktopMessages } from './locale.ts'
 import { claimDesktopSingleInstance } from './single-instance.ts'
 import { desktopUpdateChannel } from './update-channel.ts'
-import { DesktopUpdateCoordinator } from './update-coordinator.ts'
+import type { DesktopUpdateCoordinator } from './update-coordinator.ts'
 import { prepareDesktopUpdateWindow } from './update-window.ts'
 import { DesktopCommandManager } from './command-management.ts'
 import { serveWebDocument, authenticateWebHost, forwardWebRequest, removeLegacyHostCookies } from './web-document.ts'
@@ -67,6 +67,8 @@ import { DesktopUpdateOverlays } from './update-overlay.ts'
 import { DesktopQuitConfirmation } from './quit-confirmation.ts'
 import { DesktopTray } from './tray.ts'
 import { DesktopBackgroundNotice } from './background-notice.ts'
+
+import { desktopUpdatesEnabled } from './cpd-update-policy.ts'
 
 let focusPrimaryWindow = (): void => {}
 let stopForRecovery = async (): Promise<void> => { await stopOperationReports() }
@@ -361,9 +363,10 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
 }
 
 async function main(): Promise<void> {
-  const desktopSettings = await readDesktopSettings(app.getPath('userData'))
+  const updatesEnabled = desktopUpdatesEnabled()
+  const desktopSettings = updatesEnabled ? await readDesktopSettings(app.getPath('userData')) : undefined
   void pruneCrashReports(app.getPath('logs'))
-  const journalDirectory = process.env.DSH_DESKTOP_UPDATE_JOURNAL_DIR
+  const journalDirectory = updatesEnabled ? process.env.DSH_DESKTOP_UPDATE_JOURNAL_DIR : undefined
   const updateJournal = journalDirectory === undefined ? undefined : new DesktopUpdateJournal(journalDirectory, app.getVersion())
   const resources = runtimeResources()
   const paths = resolveDesktopPaths()
@@ -410,7 +413,7 @@ async function main(): Promise<void> {
   }
   let enteredWorkspace = false
   // NSIS passes --updated when it launches the application after installation.
-  let raiseAfterUpdate = process.platform === 'win32' && process.argv.includes('--updated')
+  let raiseAfterUpdate = updatesEnabled && process.platform === 'win32' && process.argv.includes('--updated')
   let shellInstallerOwnsQuit = false
   let requireCleanStop = false
   let updateStoppedHost = false
@@ -620,15 +623,12 @@ async function main(): Promise<void> {
     return startup
   }
 
-  const manifest: unknown = JSON.parse(await readFile(join(app.getAppPath(), 'package.json'), 'utf8'))
-  const packagedChannel = desktopUpdateChannel(manifest)
-  const channelSettings = new DesktopUpdateSettings(app.getPath('userData'), packagedChannel)
-  const initialChannel = await channelSettings.load()
-  channelState = { channel: initialChannel.kind === 'ready' ? initialChannel.channel : null,
-    packagedChannel, changing: false,
-    ...(initialChannel.kind === 'error' ? { error: configurationFailure(initialChannel.error) } : {}) }
-  const updateChannel = initialChannel.kind === 'ready' ? initialChannel.channel : packagedChannel
-  const updates = new DesktopUpdateCoordinator(
+  let manifest: unknown
+  let packagedChannel: ReturnType<typeof desktopUpdateChannel>
+  let channelSettings: DesktopUpdateSettings
+  let updates: DesktopUpdateCoordinator
+  let updateSchedule: DesktopUpdateSchedule
+  const createUpdater = (Coordinator: typeof DesktopUpdateCoordinator, updateChannel: typeof packagedChannel) => new Coordinator(
     publishUpdate,
     async () => {
       await commandManager.idle()
@@ -684,8 +684,19 @@ async function main(): Promise<void> {
     undefined, undefined, undefined, undefined,
     updateChannel,
   )
-
-  if (initialChannel.kind === 'error') updates.suspendConfiguration(initialChannel.error.path)
+  if (updatesEnabled) {
+    manifest = JSON.parse(await readFile(join(app.getAppPath(), 'package.json'), 'utf8'))
+    packagedChannel = desktopUpdateChannel(manifest)
+    channelSettings = new DesktopUpdateSettings(app.getPath('userData'), packagedChannel)
+    const initialChannel = await channelSettings.load()
+    channelState = { channel: initialChannel.kind === 'ready' ? initialChannel.channel : null,
+      packagedChannel, changing: false,
+      ...(initialChannel.kind === 'error' ? { error: configurationFailure(initialChannel.error) } : {}) }
+    const { DesktopUpdateCoordinator } = await import('./update-coordinator.ts')
+    updates = createUpdater(DesktopUpdateCoordinator, initialChannel.kind === 'ready' ? initialChannel.channel : packagedChannel)
+    if (initialChannel.kind === 'error') updates.suspendConfiguration(initialChannel.error.path)
+    updateSchedule = new DesktopUpdateSchedule(updates, resolveDesktopUpdateScheduleConfig(process.env))
+  }
   const publishChannel = (state: DesktopChannelState): DesktopChannelState => {
     channelState = state
     for (const window of BrowserWindow.getAllWindows()) {
@@ -694,8 +705,6 @@ async function main(): Promise<void> {
     }
     return state
   }
-
-  const updateSchedule = new DesktopUpdateSchedule(updates, resolveDesktopUpdateScheduleConfig(process.env))
 
   const downloadUpdate = async (version: string, revision = updates.revision): Promise<DesktopUpdateState> => {
     updateJournal?.action('download-requested')
@@ -827,12 +836,12 @@ async function main(): Promise<void> {
     windowsLanguage = locale.id
     refreshApplicationMenu()
   })
-  ipcMain.handle(DESKTOP_IPC.updatesChannelGet, (event) => {
+  let channelRequests = 0
+  if (updatesEnabled) ipcMain.handle(DESKTOP_IPC.updatesChannelGet, (event) => {
     assertProductSender(event)
     return channelState
   })
-  let channelRequests = 0
-  ipcMain.handle(DESKTOP_IPC.updatesChannelSet, async (event, channel: unknown): Promise<DesktopChannelChangeResult> => {
+  const setUpdateChannel = async (event: IpcMainInvokeEvent, channel: unknown): Promise<DesktopChannelChangeResult> => {
     assertProductSender(event)
     if (!isDesktopUpdateChannel(channel)) throw new Error('desktop update: unsupported channel')
     if (channelState === undefined) throw new Error('desktop update: settings are not initialized')
@@ -856,8 +865,9 @@ async function main(): Promise<void> {
         ...(updates.configurationFailure === 'cleanup' ? { error: 'cleanup' as const } : {}) })
       return { kind: 'failed', state, reason: channelSaveFailure(error) }
     }
-  })
-  ipcMain.handle(DESKTOP_IPC.updatesStatus, (event) => {
+  }
+  if (updatesEnabled) ipcMain.handle(DESKTOP_IPC.updatesChannelSet, setUpdateChannel)
+  if (updatesEnabled) ipcMain.handle(DESKTOP_IPC.updatesStatus, (event) => {
     assertProductSender(event)
     return updatePresentation(updates.state)
   })
@@ -880,7 +890,7 @@ async function main(): Promise<void> {
       if (width < 960) window.setSize(960, height)
     }
   })
-  ipcMain.handle(DESKTOP_IPC.updatesOpen, async (event) => {
+  if (updatesEnabled) ipcMain.handle(DESKTOP_IPC.updatesOpen, async (event) => {
     assertProductSender(event)
     await openUpdatePrompt()
   })
@@ -1028,7 +1038,7 @@ async function main(): Promise<void> {
     void authenticatePolicy().catch((error: unknown) => { console.error(error) })
   }
   const queuePolicyAuthentication = (): void => {
-    if (!desktopSettings.updates.allowTestAuthPopupWindow) return
+    if (desktopSettings?.updates.allowTestAuthPopupWindow !== true) return
     if (authenticationOperation !== undefined) {
       policyAuth?.focus(); updateDialog.focus()
       return
@@ -1037,7 +1047,7 @@ async function main(): Promise<void> {
     flushQueuedPolicyAuthentication()
   }
   const runPolicyAuthentication = async () => {
-    if (!desktopSettings.updates.allowTestAuthPopupWindow
+    if (desktopSettings?.updates.allowTestAuthPopupWindow !== true
       || policyAuth === undefined || mandatoryPolicy === undefined || quitting) return undefined
     const parent = mandatoryUI?.confirmationWindow ?? currentDialogWindow()
     if (parent === undefined) return undefined
@@ -1060,7 +1070,7 @@ async function main(): Promise<void> {
   const checkPolicyManually = async (authentication: 'immediate' | 'deferred' = 'immediate') => {
     if (authenticationOperation !== undefined) return authenticatePolicy()
     const policy = await mandatoryPolicy?.check('manual', true)
-    if (policy?.error !== 'authentication-required' || !desktopSettings.updates.allowTestAuthPopupWindow) return policy
+    if (policy?.error !== 'authentication-required' || desktopSettings?.updates.allowTestAuthPopupWindow !== true) return policy
     if (authentication === 'immediate') return authenticatePolicy()
     queuePolicyAuthentication()
     return policy
@@ -1070,12 +1080,14 @@ async function main(): Promise<void> {
     if (!quitting) void mandatoryPolicy?.check('foreground-or-resume').catch((error: unknown) => { console.error(error) })
     if (!quitting) void updateSchedule.check().catch((error: unknown) => { console.error(error) })
   }
-  powerMonitor.on('resume', automaticCheck)
-  app.on('will-quit', () => {
-    updateSchedule.dispose()
-    powerMonitor.off('resume', automaticCheck)
-    updates.dispose()
-  })
+  if (updatesEnabled) {
+    powerMonitor.on('resume', automaticCheck)
+    app.on('will-quit', () => {
+      updateSchedule.dispose()
+      powerMonitor.off('resume', automaticCheck)
+      updates.dispose()
+    })
+  }
 
   const applicationIconPath = development
     ? join(app.getAppPath(), 'resources', process.platform === 'darwin' ? 'cpd-icon.png' : 'icon-windows.png')
@@ -1132,7 +1144,7 @@ async function main(): Promise<void> {
         click: () => { void showAbout().catch((error: unknown) => { console.error(error) }) } }
       : { label: currentDesktopLocale().messages.aboutMenu, role: 'about' },
     { type: 'separator' },
-    { label: currentDesktopLocale().messages.checkUpdatesMenu, click: () => { void openUpdatePrompt(true) } },
+    ...updatesEnabled ? [{ label: currentDesktopLocale().messages.checkUpdatesMenu, click: () => { void openUpdatePrompt(true) } }] : [],
     ...process.platform === 'darwin' || process.platform === 'win32'
       ? [{ label: currentDesktopLocale().messages.cliCommandMenu, click: () => { void commandManager.show() } }] : [],
     { type: 'separator' },
@@ -1248,7 +1260,7 @@ async function main(): Promise<void> {
     mainWindow = window
     browserGuests.bind(window, (guest, name) => shortcuts.attachGuest(window, guest, name))
     shortcuts.attach(window)
-    window.on('focus', automaticCheck)
+    if (updatesEnabled) window.on('focus', automaticCheck)
     // Closing hides: the page and the Host keep running, and the next show resumes the same document.
     window.on('close', (event) => {
       if (quitting || shellInstallerOwnsQuit || sessionEnding) return
@@ -1356,7 +1368,7 @@ async function main(): Promise<void> {
     backgroundNotice?.dispose()
     tray?.dispose()
     if (mainWindow !== undefined && !mainWindow.isDestroyed()) mainWindow.hide()
-    updateSchedule.dispose()
+    if (updatesEnabled) updateSchedule.dispose()
     updateDialog.dispose()
     mandatoryUI?.dispose()
     void Promise.all([stopOperationReports(), Promise.resolve(mandatoryPolicy?.dispose()).then(() => policyAuth?.dispose()),
@@ -1392,12 +1404,14 @@ async function main(): Promise<void> {
   })
 
   mainWindow = createMainWindow()
-  if (typeof manifest !== 'object' || manifest === null) throw new Error('desktop policy: invalid application manifest')
-  const developmentPolicy = app.isPackaged ? undefined : process.env.DSH_DESKTOP_MANDATORY_UPDATE_CONFIG
-  const policyInput: unknown = app.isPackaged
-    ? ('dshMandatoryUpdatePolicy' in manifest ? manifest.dshMandatoryUpdatePolicy : undefined)
-    : developmentPolicy === undefined ? undefined : JSON.parse(developmentPolicy) as unknown
-  const policyConfig = resolveDesktopPolicyConfig(policyInput, !app.isPackaged)
+  const policyConfig = !updatesEnabled ? undefined : (() => {
+    if (typeof manifest !== 'object' || manifest === null) throw new Error('desktop policy: invalid application manifest')
+    const developmentPolicy = app.isPackaged ? undefined : process.env.DSH_DESKTOP_MANDATORY_UPDATE_CONFIG
+    const policyInput: unknown = app.isPackaged
+      ? ('dshMandatoryUpdatePolicy' in manifest ? manifest.dshMandatoryUpdatePolicy : undefined)
+      : developmentPolicy === undefined ? undefined : JSON.parse(developmentPolicy) as unknown
+    return resolveDesktopPolicyConfig(policyInput, !app.isPackaged)
+  })()
   if (policyConfig !== undefined) {
     if (policyConfig.authentication === 'feishu-test') {
       policyAuth = new DesktopPolicyTestAuth(policyConfig.origin, policyConfig.allowedAuthOrigins, locale,
@@ -1436,7 +1450,7 @@ async function main(): Promise<void> {
       if (app.isPackaged && state.error === 'authentication-required' && !isQuitting()) queuePolicyAuthentication()
     }).catch((error: unknown) => { console.error(error) })
   }
-  automaticCheck()
+  if (updatesEnabled) automaticCheck()
   await reconcileBackend().catch(() => undefined)
   // Window lifecycle callbacks run while backend startup is pending.
   if (isQuitting()) return
@@ -1444,7 +1458,7 @@ async function main(): Promise<void> {
   if (window !== undefined && development && process.env.DSH_DESKTOP_OPEN_DEVTOOLS !== '0') {
     window.webContents.openDevTools({ mode: 'detach' })
   }
-  publishUpdate(updateState)
+  if (updatesEnabled) publishUpdate(updateState)
 }
 
 const ownsDesktopInstance = claimDesktopSingleInstance(app, () => { focusPrimaryWindow() })

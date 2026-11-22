@@ -13,8 +13,8 @@
 - button "Context injection skill-catalog"
 - button "Context injection time-context"
 - paragraph: partial
-- status: Deep diving
-- text: Deep diving for {{duration}} ···
+- status: Working
+- text: Working for {{duration}} ···
 - button "2 queued messages" [disabled] [expanded]
 - list:
   - listitem:

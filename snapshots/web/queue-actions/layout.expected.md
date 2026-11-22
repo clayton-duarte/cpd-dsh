@@ -16,8 +16,8 @@
 - button "Context injection skill-catalog"
 - button "Context injection time-context"
 - paragraph: partial
-- status: Deep diving
-- text: Deep diving for {{duration}} ···
+- status: Working
+- text: Working for {{duration}} ···
 - region "To-dos":
   - button "To-dos 1 completed · 1 in progress"
 - text: Ongoing Goal Keep the composer context panels aligned
