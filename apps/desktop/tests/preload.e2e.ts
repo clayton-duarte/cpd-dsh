@@ -70,6 +70,7 @@ describe.skipIf(!existsSync(preload('preload-app')))('built sandboxed Desktop pr
     })
     if (name === 'preload-app') {
       const product = exposed.get('dshDesktop') as { deviceInfo(): Promise<string> }
+      expect(product).not.toHaveProperty('updates')
       invoke.mockResolvedValueOnce('platform=darwin; memory_gib=32.0')
       await expect(product.deviceInfo()).resolves.toBe('platform=darwin; memory_gib=32.0')
       expect(invoke).toHaveBeenCalledWith('dsh-desktop:device-info')

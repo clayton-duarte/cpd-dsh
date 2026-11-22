@@ -16,8 +16,8 @@
 - button "Context injection skill-catalog"
 - button "Context injection time-context"
 - paragraph: partial
-- status: Deep diving
-- text: Deep diving for {{duration}} ···
+- status: Working
+- text: Working for {{duration}} ···
 - list:
   - listitem:
     - text: Keep working until I stop you again.

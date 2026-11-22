@@ -186,6 +186,7 @@ describe('desktop macOS release signature', () => {
       publish: null,
     })
     expect(config.extraMetadata).not.toHaveProperty('dshMandatoryUpdatePolicy')
+    expect(config.extraMetadata).not.toHaveProperty('dshDesktopUpdateChannel')
     expect(config.extraResources).toEqual(expect.arrayContaining([
       expect.objectContaining({ to: 'LICENSE' }),
       expect.objectContaining({ to: 'THIRD_PARTY_NOTICES.md' }),

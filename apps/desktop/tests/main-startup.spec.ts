@@ -227,6 +227,7 @@ const harness = await vi.hoisted(async () => {
     failWindow(error: Error) { windowFailure = error },
     windows, views, hosts, handlers, app, FakeWindow, FakeView, FakeHost, powerMonitor, nativeTheme,
     readAnalyticsPolicy, analytics, watchAccount, downloadReporter,
+    enforceCpdPolicy: false,
     trays, FakeTray, backgroundNotice, shellDialog,
     menu, popup, socketHeaders: vi.fn(), connectWelcome: vi.fn(), removeLegacyHostCookies: vi.fn(async () => {}), hostCookies: {},
     loginShell, readLoginShell, updateCheck, updateDownload, updateInstall,
@@ -335,6 +336,13 @@ vi.mock('../src/background-notice.ts', () => ({ DesktopBackgroundNotice: class {
   readonly close = harness.backgroundNotice.close
   readonly dispose = harness.backgroundNotice.dispose
 } }))
+vi.mock('../src/cpd-update-policy.ts', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../src/cpd-update-policy.ts')>()
+  return {
+    ...original,
+    desktopUpdatesEnabled: () => harness.enforceCpdPolicy ? original.desktopUpdatesEnabled() : true,
+  }
+})
 vi.mock('node:fs/promises', async (importOriginal) => {
   const original = await importOriginal<typeof import('node:fs/promises')>()
   return { ...original, readFile: vi.fn((path: Parameters<typeof original.readFile>[0], encoding?: 'utf8') => {
@@ -467,6 +475,7 @@ beforeEach(() => {
   harness.dialog.showMessageBox.mockImplementation((options: { title?: string }) => {
     if (options.title !== en.startupFailed && options.title !== zh.startupFailed) return Promise.resolve({ response: 1 })
     harness.dialogShown.resolve()
+    harness.enforceCpdPolicy = false
     return new Promise(() => {})
   })
   vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -3101,4 +3110,33 @@ it('opens a keyless Desktop workspace without watching the vendor account or req
   expect(harness.watchAccount).not.toHaveBeenCalled()
   expect(harness.readAnalyticsPolicy).not.toHaveBeenCalled()
   expect(harness.analytics).not.toHaveBeenCalled()
+})
+
+it.each([true, false])('CPD skips background and manual in-app updates (packaged=%s)', async (packaged) => {
+  harness.enforceCpdPolicy = true
+  harness.app.isPackaged = packaged
+  vi.stubEnv('DSH_DESKTOP_MANDATORY_UPDATE_CONFIG', 'not JSON')
+  vi.stubEnv('DSH_DESKTOP_UPDATE_CHECK_INTERVAL_MS', 'not a number')
+  harness.embeddedPolicy = { origin: 'https://policy.invalid', allowedPageOrigins: ['https://pages.invalid'] }
+  configureTestAuthPopup(true)
+
+  await import('../src/main.ts')
+  await harness.preparing.promise
+  harness.prepared.resolve()
+  await harness.hostStarted.promise
+  const host = harness.hosts[0]!
+  host.ready.resolve()
+  await invoke(DESKTOP_IPC.boot)
+  const window = harness.windows[0]!
+  window.emit('focus')
+  harness.powerMonitor.emit('resume')
+  await vi.advanceTimersByTimeAsync(700_000)
+
+  const unavailable = [DESKTOP_IPC.updatesChannelGet, DESKTOP_IPC.updatesChannelSet, DESKTOP_IPC.updatesStatus,
+    DESKTOP_IPC.updatesOpen, MANDATORY_IPC.action]
+  expect(unavailable.filter(channel => harness.handlers.has(channel))).toEqual([])
+  expect(applicationMenuItems().map(item => item.label)).not.toContain(en.checkUpdatesMenu)
+  expect(harness.updateCheck).not.toHaveBeenCalled()
+  expect(harness.downloadReporter).not.toHaveBeenCalled()
+  expect(testAuth.login).not.toHaveBeenCalled()
 })

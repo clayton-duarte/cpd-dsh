@@ -35,7 +35,7 @@ Desktop reads the effective application theme from the Host startup settings res
 
 Electron caches the last confirmed UI language in `userData/desktop/locale-cache` so startup recovery dialogs can use it before Host settings are available. Missing, invalid, or unreadable caches fall back to the system language; cache write failures do not block startup. A successful Host startup or a UI language change refreshes the cache. Until then, a changed system language may differ from the cached language.
 
-The shipped Desktop profile does not collect product analytics. Update checks and downloads still contact the configured update services. Crash reports and update journals are local diagnostics.
+The shipped Desktop profile does not collect product analytics. CPD Desktop does not check for or install updates in the app; obtain releases separately through GitHub. Crash reports are local diagnostics.
 
 The desktop application is an Electron shell around the complete dsh Web application. An Electron RunAsNode child starts the shared profile runner, and Electron immediately loads the packaged Web entry at `dsh-app://app/`. Its shared loading page waits for Host boot injections, then starts the client without navigating to another document. Electron forwards application HTTP requests to the authenticated Web Host, dropping connection-level response headers (`transfer-encoding`, `connection`, `keep-alive`) that describe the Node fetch rather than the resource, and marking plugin bundle responses `no-store` because their per-launch revisions would only accumulate in Chromium's disk cache; WebSocket streams connect to that Host with credentials attached only for the owned application window. Node IPC carries boot injections, readiness, and shutdown. Desktop listens on an OS-assigned port by default, so it cannot collide with Web’s `3080` or a reserved port; a `webserver.config.port` patch can override it. Native Host requests send the current Host's authentication cookie explicitly, and no Electron session stores it; each Host start removes `dsh-auth-*` cookies that earlier releases left in the default session, because cookies ignore ports and would otherwise accompany every request to `127.0.0.1`.
 
@@ -61,7 +61,7 @@ Press F12 (Fn+F12 on media-key keyboards), Command+Option+I on macOS, or Ctrl+Sh
 
 ## Terminal command
 
-The application menu's **Manage dsh Command…** entry, immediately below **Check for Updates…**, shows the current command and offers Install, Repair, and Remove. The command uses Desktop's installed runtime and the ordinary [dsh CLI](../cli/README.md), including when the Desktop application is closed. Open a new terminal after installation and run `dsh --version`.
+The application menu's **Manage dsh Command…** entry shows the current command and offers Install, Repair, and Remove. The command uses Desktop's installed runtime and the ordinary [dsh CLI](../cli/README.md), including when the Desktop application is closed. Open a new terminal after installation and run `dsh --version`.
 
 On macOS, installation creates `/usr/local/bin/dsh` and requests administrator authentication when the directory requires it. Shell startup files are unchanged. On Windows, the management dialog registers the command in the current user's PATH. A pre-existing command requires confirmation before switching; repairing Desktop's own selected command does not repeat that confirmation. The macOS link preserves and restores the displaced launcher; Windows preserves other PATH entries, including entries that predate registration. A command with higher PATH precedence is reported with its location. After moving the application, use Repair on macOS or Install from the new location on Windows. Remove leaves unrelated installations intact.
 
@@ -259,6 +259,8 @@ Use `node apps/desktop/scripts/test-windows-installer.mjs --uninstall-only --com
 <a id="updates"></a>
 
 ## Updates
+
+CPD disables the upstream updater, mandatory policy, and the renderer's optional `dshDesktop.updates` API. The following describes the retained upstream implementation.
 
 On Windows, the downloaded-update confirmation explains that the application closes during installation, reopens automatically, and should not be launched again while updating. An installer restart carrying `--updated` raises and focuses the main window once when startup opens the workspace directly, without enabling always-on-top. Startup into the welcome page discards that request so a later login keeps its normal activation behavior. Ordinary launches and other platforms do not use this foregrounding step.
 
