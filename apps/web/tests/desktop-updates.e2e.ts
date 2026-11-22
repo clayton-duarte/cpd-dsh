@@ -8,7 +8,7 @@ import { presentDesktopUpdate } from '../../desktop/src/update-presentation.ts'
 import { launchWebScaffold, watchConsole } from './scaffold.ts'
 
 // Mirrors the preload's presentation-only API; importing Client projects would mix compiler faces.
-type Presentation = ReturnType<typeof presentDesktopUpdate>
+type Presentation = ReturnType<typeof presentDesktopUpdate> & { managedByDotfiles?: true }
 interface CarrierFixture {
   publish(state: Presentation): void
   opens: number
@@ -17,13 +17,15 @@ interface CarrierFixture {
 type FixtureWindow = Window & typeof globalThis & { updateFixture: CarrierFixture }
 
 describe('web e2e: Desktop update workspace chrome', () => {
-  it.each(['zh-CN', 'en-US'])('renders update states and routes explicit actions in %s', async (locale) => {
+  it.each([
+    ['zh-CN', false], ['en-US', false], ['en-US', true],
+  ] as const)('renders update states in %s (managed=%s)', async (locale, managed) => {
     const scaffold = await launchWebScaffold({})
     try {
       const browser = await chromium.launch()
       try {
         const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, locale })
-        await page.addInitScript(() => {
+        await page.addInitScript((isManaged) => {
           let current: Presentation = { phase: 'idle' }
           const listeners = new Set<(state: Presentation) => void>()
           const fixture: CarrierFixture = {
@@ -32,17 +34,17 @@ describe('web e2e: Desktop update workspace chrome', () => {
           }
           Object.assign(window, {
             updateFixture: fixture,
-            dshDesktop: { protocolVersion: 1, updates: {
+            dshDesktop: { protocolVersion: 1, [isManaged ? 'managedUpdates' : 'updates']: {
               status: async () => current,
               open: async () => { fixture.opens += 1 },
               subscribe(listener: (state: Presentation) => void) { listeners.add(listener); return () => listeners.delete(listener) },
             } },
           })
-        })
+        }, managed)
         const tripwire = watchConsole(page)
         const evidenceRoot = fileURLToPath(new URL('../../desktop/.desktop-build/qualification/', import.meta.url))
         await mkdir(evidenceRoot, { recursive: true })
-        const evidence = await mkdtemp(join(evidenceRoot, `workspace-updates-${locale}-`))
+        const evidence = await mkdtemp(join(evidenceRoot, `workspace-updates-${locale}-${managed ? 'managed-' : ''}`))
         try {
           await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
           await page.waitForSelector('[class*="frame"]')
@@ -58,6 +60,21 @@ describe('web e2e: Desktop update workspace chrome', () => {
             (window as FixtureWindow).updateFixture.publish(value)
           }, state)
           const opens = async () => page.evaluate(() => (window as FixtureWindow).updateFixture.opens)
+          if (managed) {
+            const quit = page.getByRole('button', { name: 'Quit to update', exact: true })
+            expect(await quit.count()).toBe(0)
+            await publish({ phase: 'ready', managedByDotfiles: true, version: 'bbbbbbb' })
+            await quit.waitFor()
+            expect(await opens()).toBe(0)
+            await page.screenshot({ path: join(evidence, 'managed-ready.png') })
+            await quit.click()
+            await expect.poll(opens).toBe(1)
+            await publish({ phase: 'idle' })
+            await quit.waitFor({ state: 'detached' })
+            expect(tripwire.pageErrors).toEqual([])
+            console.log(`CPD managed workspace chrome evidence: ${evidence}`)
+            return
+          }
           await publish(available)
           const update = page.getByRole('button', { name: availableLabel, exact: true })
           await update.waitFor()

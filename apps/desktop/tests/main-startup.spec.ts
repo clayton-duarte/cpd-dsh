@@ -347,7 +347,8 @@ vi.mock('node:fs/promises', async (importOriginal) => {
   const original = await importOriginal<typeof import('node:fs/promises')>()
   return { ...original, readFile: vi.fn((path: Parameters<typeof original.readFile>[0], encoding?: 'utf8') => {
     if (path === join('desktop-test-app', 'package.json')) {
-      return Promise.resolve(JSON.stringify({ dshDesktopAppId: 'com.deepseek.dsh', dshMandatoryUpdatePolicy: harness.embeddedPolicy }))
+      return Promise.resolve(JSON.stringify({ dshDesktopAppId: 'com.deepseek.dsh', dshMandatoryUpdatePolicy: harness.embeddedPolicy,
+        dshBuildCommit: 'a'.repeat(40), dshBuildDirty: false }))
     }
     return encoding === undefined ? original.readFile(path) : original.readFile(path, encoding)
   }) }
@@ -3139,4 +3140,48 @@ it.each([true, false])('CPD skips background and manual in-app updates (packaged
   expect(harness.updateCheck).not.toHaveBeenCalled()
   expect(harness.downloadReporter).not.toHaveBeenCalled()
   expect(testAuth.login).not.toHaveBeenCalled()
+})
+
+it('CPD publishes a local staged notice and uses the normal, cancellable quit path', async () => {
+  harness.enforceCpdPolicy = true
+  vi.stubGlobal('process', { ...process, platform: 'darwin', arch: 'arm64' })
+  await import('../src/main.ts')
+  await harness.preparing.promise
+  harness.prepared.resolve()
+  await harness.hostStarted.promise
+  const host = harness.hosts[0]!
+  host.ready.resolve()
+  await invoke(DESKTOP_IPC.boot)
+  await expect(invoke(DESKTOP_IPC.managedUpdateStatus, 'shell')).rejects.toThrow('rejected')
+  await expect(invoke(DESKTOP_IPC.managedUpdateQuit, 'shell')).rejects.toThrow('rejected')
+  await expect(invoke(DESKTOP_IPC.managedUpdateStatus, 'app')).resolves.toEqual({ phase: 'idle' })
+  await invoke(DESKTOP_IPC.managedUpdateQuit, 'app')
+  expect(harness.app.quit).not.toHaveBeenCalled()
+
+  const root = join(harness.app.getPath('home'), '.local', 'opt', 'cpd-dsh')
+  const target = `cpd-desktop-${'b'.repeat(40)}`
+  const executable = join(root, 'releases', target, 'CPD.app', 'Contents', 'MacOS')
+  mkdirSync(executable, { recursive: true })
+  writeFileSync(join(executable, 'CPD'), '', { mode: 0o755 })
+  const notice = join(root, 'update-ready.json')
+  writeFileSync(notice, JSON.stringify({ schema: 1, installed: `cpd-desktop-${'a'.repeat(40)}`,
+    target, stagedAt: Math.floor(Date.now() / 1000) }))
+
+  const ready = { phase: 'ready', managedByDotfiles: true, version: 'bbbbbbb' }
+  await vi.advanceTimersByTimeAsync(15_000)
+  await vi.waitFor(() => {
+    expect(harness.windows[0]!.webContents.send).toHaveBeenCalledWith(DESKTOP_IPC.managedUpdateChanged, ready)
+  })
+  await expect(invoke(DESKTOP_IPC.managedUpdateStatus, 'app')).resolves.toEqual(ready)
+  host.inspectQuit.mockResolvedValueOnce({ activeTasks: true, scheduledTasks: false })
+  await invoke(DESKTOP_IPC.managedUpdateQuit, 'app')
+  await vi.advanceTimersByTimeAsync(0)
+  expect(harness.dialog.showMessageBox).toHaveBeenCalledOnce()
+  expect(host.stop).not.toHaveBeenCalled()
+
+  rmSync(notice)
+  await invoke(DESKTOP_IPC.managedUpdateQuit, 'app')
+  expect(harness.app.quit).toHaveBeenCalledOnce()
+  expect(harness.windows[0]!.webContents.send).toHaveBeenLastCalledWith(DESKTOP_IPC.managedUpdateChanged, { phase: 'idle' })
+  expect(harness.updateCheck).not.toHaveBeenCalled()
 })

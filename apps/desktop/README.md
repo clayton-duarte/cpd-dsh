@@ -260,7 +260,9 @@ Use `node apps/desktop/scripts/test-windows-installer.mjs --uninstall-only --com
 
 ## Updates
 
-CPD disables the upstream updater, mandatory policy, and the renderer's optional `dshDesktop.updates` API. The following describes the retained upstream implementation.
+CPD disables the upstream updater, mandatory policy, and the renderer's optional `dshDesktop.updates` API. On packaged Apple Silicon builds, CPD can show **Quit to update** when dotfiles has staged another build for the running release. The local-only `dshDesktop.managedUpdates` API provides notice status and requests a normal quit; active or scheduled work still gets the native quit warning. CPD does not download or install the update and does not relaunch itself. Wait for dotfiles sync before reopening.
+
+The rest of this section describes the retained upstream implementation.
 
 On Windows, the downloaded-update confirmation explains that the application closes during installation, reopens automatically, and should not be launched again while updating. An installer restart carrying `--updated` raises and focuses the main window once when startup opens the workspace directly, without enabling always-on-top. Startup into the welcome page discards that request so a later login keeps its normal activation behavior. Ordinary launches and other platforms do not use this foregrounding step.
 

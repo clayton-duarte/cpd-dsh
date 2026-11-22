@@ -19,7 +19,7 @@ function translate(dictionary: typeof zh | typeof en): SettingsTranslate {
       messages[key] ?? key)
 }
 
-function fixture() {
+function fixture(managed = false) {
   let listener: ((state: DesktopUpdatePresentation) => void) | undefined
   const status = Promise.withResolvers<DesktopUpdatePresentation>()
   const unsubscribe = vi.fn()
@@ -29,7 +29,7 @@ function fixture() {
     open,
     subscribe: (next) => { listener = next; return unsubscribe },
   }
-  const source = new DesktopUpdateSource(bridge)
+  const source = new DesktopUpdateSource(bridge, managed)
   const subscribe = (notify: () => void) => source.store.subscribe(notify)
   const snapshot = () => source.store.getSnapshot()
   function Indicator({ wide = true, hidden = false, dictionary = zh }: {
@@ -49,6 +49,26 @@ function fixture() {
 }
 
 const available = { phase: 'available', version: '1.0.1' } as const
+
+it('offers only Quit to update for a staged dotfiles build and clears it when withdrawn', async () => {
+  const f = fixture(true)
+  try {
+    await act(async () => { f.status.reject(new Error('IPC unavailable')) })
+    expect(screen.queryByRole('button')).toBeNull()
+    f.view.rerender(<f.Indicator dictionary={en} />)
+    await f.emit({ phase: 'ready', managedByDotfiles: true, version: 'bbbbbbb' })
+    const quit = screen.getByRole('button', { name: 'Quit to update' })
+    fireEvent.focus(quit)
+    expect((await screen.findByRole('tooltip')).textContent).toContain('wait for dotfiles to sync before reopening')
+    f.open.mockRejectedValueOnce(new Error('IPC unavailable'))
+    fireEvent.click(quit)
+    await act(async () => {})
+    expect(f.open).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('button', { name: /retry/i })).toBeNull()
+    await f.emit({ phase: 'idle' })
+    expect(screen.queryByRole('button')).toBeNull()
+  } finally { f.view.unmount() }
+})
 
 it('renders nothing outside the Desktop carrier', () => {
   const source = new DesktopUpdateSource(undefined)

@@ -85,7 +85,15 @@ function createProductApi(): DshDesktopProductApi {
         ipcRenderer.on(DESKTOP_IPC.updatesPresentation, handle)
         return () => { ipcRenderer.off(DESKTOP_IPC.updatesPresentation, handle) }
       },
-    } } : {},
+    } } : { managedUpdates: {
+      status: () => ipcRenderer.invoke(DESKTOP_IPC.managedUpdateStatus) as ReturnType<NonNullable<DshDesktopProductApi['managedUpdates']>['status']>,
+      open: () => ipcRenderer.invoke(DESKTOP_IPC.managedUpdateQuit) as Promise<void>,
+      subscribe(listener) {
+        const handle = (_event: Electron.IpcRendererEvent, state: Parameters<typeof listener>[0]): void => { listener(state) }
+        ipcRenderer.on(DESKTOP_IPC.managedUpdateChanged, handle)
+        return () => { ipcRenderer.off(DESKTOP_IPC.managedUpdateChanged, handle) }
+      },
+    } },
   }
 }
 

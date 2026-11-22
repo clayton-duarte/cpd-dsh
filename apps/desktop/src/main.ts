@@ -2,7 +2,7 @@
 
 import { installFileActions } from './file-actions.ts'
 import { configurationFailure, channelSaveFailure, configurationMessage } from './update-configuration.ts'
-import type { DesktopChannelState, DesktopChannelChangeResult } from '@deepseek-ai/dsh-client-ui-settings-general/types'
+import type { DesktopChannelState, DesktopChannelChangeResult, DesktopUpdatePresentation as ManagedUpdatePresentation } from '@deepseek-ai/dsh-client-ui-settings-general/types'
 import { DesktopUpdateSettings } from './update-settings.ts'
 import { isDesktopUpdateChannel } from './settings-file.ts'
 import { WINDOWS_TITLEBAR_HEIGHT } from './windows-layout.ts'
@@ -69,6 +69,7 @@ import { DesktopTray } from './tray.ts'
 import { DesktopBackgroundNotice } from './background-notice.ts'
 
 import { desktopUpdatesEnabled } from './cpd-update-policy.ts'
+import { managedRelease, readManagedUpdate } from './cpd-managed-update.ts'
 
 let focusPrimaryWindow = (): void => {}
 let stopForRecovery = async (): Promise<void> => { await stopOperationReports() }
@@ -894,6 +895,38 @@ async function main(): Promise<void> {
     assertProductSender(event)
     await openUpdatePrompt()
   })
+  const managedBuild = !updatesEnabled && app.isPackaged && process.platform === 'darwin' && process.arch === 'arm64'
+    ? managedRelease(await readFile(join(app.getAppPath(), 'package.json'), 'utf8')
+      .then(text => JSON.parse(text) as unknown).catch(() => undefined))
+    : undefined
+  const managedRoot = join(app.getPath('home'), '.local', 'opt', 'cpd-dsh')
+  const managedPresentation = (target: string | undefined): ManagedUpdatePresentation => target === undefined
+    ? { phase: 'idle' }
+    : { phase: 'ready', managedByDotfiles: true, version: target.slice(-40, -33) }
+  let lastManagedTarget: string | undefined
+  let managedRead: Promise<string | undefined> | undefined
+  const refreshManagedTarget = (): Promise<string | undefined> => {
+    if (managedBuild === undefined || isQuitting()) return Promise.resolve(undefined)
+    managedRead ??= readManagedUpdate(managedRoot, managedBuild, Math.floor(Date.now() / 1000)).then((target) => {
+      if (target !== lastManagedTarget && !isQuitting()) {
+        lastManagedTarget = target
+        currentMainWindow()?.webContents.send(DESKTOP_IPC.managedUpdateChanged, managedPresentation(target))
+      }
+      return target
+    }).finally(() => { managedRead = undefined })
+    return managedRead
+  }
+  if (!updatesEnabled) {
+    ipcMain.handle(DESKTOP_IPC.managedUpdateStatus, async (event) => {
+      assertProductSender(event)
+      return managedPresentation(await refreshManagedTarget())
+    })
+    ipcMain.handle(DESKTOP_IPC.managedUpdateQuit, async (event) => {
+      assertProductSender(event)
+      // Renderer cannot pass a target or authorize installation. Use the normal quit confirmation.
+      if (await refreshManagedTarget() !== undefined && !isQuitting()) app.quit()
+    })
+  }
 
   let configurationPrompt: Promise<void> | undefined
   const showConfigurationError = (): Promise<void> => {
@@ -1404,6 +1437,13 @@ async function main(): Promise<void> {
   })
 
   mainWindow = createMainWindow()
+  if (managedBuild !== undefined) {
+    const poll = setInterval(() => {
+      void refreshManagedTarget().catch((error: unknown) => { console.error(error) })
+    }, 15_000)
+    poll.unref()
+    app.once('will-quit', () => { clearInterval(poll) })
+  }
   const policyConfig = !updatesEnabled ? undefined : (() => {
     if (typeof manifest !== 'object' || manifest === null) throw new Error('desktop policy: invalid application manifest')
     const developmentPolicy = app.isPackaged ? undefined : process.env.DSH_DESKTOP_MANDATORY_UPDATE_CONFIG
