@@ -43,3 +43,11 @@ cmp "$root/THIRD_PARTY_NOTICES.md" "$contents/Resources/THIRD_PARTY_NOTICES.md"
 signature=$(codesign -d --verbose=4 "$mount/CPD.app" 2>&1)
 grep -qx 'Signature=adhoc' <<< "$signature"
 codesign --verify --strict "$mount/CPD.app"
+
+# Exercise the packaged launcher, not the standalone npm CLI on PATH.
+cli_home=$(mktemp -d "${TMPDIR:-/tmp}/cpd-cli-home.XXXXXX")
+if ! HOME="$cli_home" DSH_HOME="$cli_home/.dsh" "$contents/Resources/runtime/cli/bin/dsh" --version; then
+  rmdir "$cli_home" 2>/dev/null || true
+  exit 1
+fi
+rmdir "$cli_home"
